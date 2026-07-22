@@ -1,0 +1,5 @@
+# Só sobem para o Apps Script os arquivos de dentro de apps-script/
+# (o clasp usa "rootDir": "apps-script" definido no .clasp.json)
+**/**
+!appsscript.json
+!*.gs

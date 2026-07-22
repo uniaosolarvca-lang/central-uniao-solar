@@ -1,0 +1,15 @@
+# Configuração local do clasp (contém o ID do seu script). Cada máquina cria o seu
+# a partir do .clasp.json.example
+.clasp.json
+
+# Credenciais do clasp (NUNCA versionar)
+.clasprc.json
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Sistema operacional / editor
+.DS_Store
+Thumbs.db
+.vscode/
