@@ -413,18 +413,14 @@ function abrirObra(o){obraSel=o;current=o;let h='<h2 style="margin-top:0">🔧 '
   h+='<div id="matResumo" class="hint" style="margin:4px 0"></div>';
   h+='<div class="frow two"><div><label>Orçamento previsto (R$)</label><input id="obraOrc" type="number" step="0.01"></div><div><label>Receita disponível da obra (R$)</label><input id="obraReceita" type="number" step="0.01"></div></div>';
   h+='<div class="actions" style="margin-top:8px"><button class="btn primary sm" id="btnSalvarCustos">💾 Salvar custos</button><button class="btn ok sm" id="btnAnaliseObra">📊 Gerar análise PDF</button></div><div id="custosStatus" class="st"></div></div>';
-  h+='<details style="margin-top:12px;border:1.5px solid var(--line);border-radius:10px;padding:9px 11px"><summary style="cursor:pointer;font-weight:700;color:var(--gd);font-size:13px">📄 Gerar Contrato em PDF</summary><div style="margin-top:9px">';
-  h+='<div class="frow two"><div><label>Estado civil</label><input id="ct_ec" placeholder="Ex.: Solteiro(a)"></div><div><label>RG</label><input id="ct_rg"></div></div>';
-  h+='<div class="frow two"><div><label>CPF</label><input id="ct_cpf"></div><div><label>Nº do projeto</label><input id="ct_proj"></div></div>';
-  h+='<div class="frow"><label>Endereço completo (com CEP)</label><input id="ct_end"></div>';
-  h+='<div class="frow"><label>Valor do contrato (R$)</label><input id="ct_valor" type="number" step="0.01"></div>';
-  h+='<div class="frow"><label>Forma de pagamento (uma condição por linha)</label><textarea id="ct_pag" style="min-height:54px" placeholder="Ex.: R$ 10.700,00, à vista, via financiamento, direto à contratada."></textarea></div>';
-  h+='<div class="frow"><label>Data do contrato</label><input id="ct_data" type="date"></div>';
-  h+='<div class="hint" style="margin:2px 0 8px">Os equipamentos entram automaticamente da lista de material da obra.</div>';
-  h+='<div class="actions"><button class="btn primary sm" id="btnContrato">📄 Gerar Contrato PDF</button></div><div id="ctStatus" class="st"></div></div></details>';
+  h+='<div style="margin-top:14px;border-top:1.5px solid var(--line);padding-top:10px"><label style="font-weight:700;font-size:12px;color:#5a6a60;display:block;margin-bottom:6px">👷 EQUIPE DE EXECUÇÃO — CONTRATO DE PRESTAÇÃO DE SERVIÇO</label>';
+  h+='<div class="hint" style="margin:0 0 8px">Contrato entre a União Solar e a equipe que vai instalar esta obra. Os dados (razão social, CNPJ, representante) vêm do cadastro de Equipes.</div>';
+  h+='<div class="frow two"><div><label>Equipe responsável</label><select id="obraEquipe"><option value="">— selecione a equipe —</option></select></div><div><label>Valor do serviço (R$)</label><input id="obraValServ" type="number" step="0.01"></div></div>';
+  h+='<div class="frow"><label>Endereço da instalação (Cláusula 1ª)</label><input id="obraEndInst"></div>';
+  h+='<div class="actions"><button class="btn ghost sm" id="btnSalvarEquipe">💾 Salvar equipe/valor</button><button class="btn primary sm" id="btnContratoServ">📄 Gerar Contrato de Serviço (PDF)</button></div><div id="ctServStatus" class="st"></div></div>';
   $('obraDet').innerHTML=h;aplicarGate();
   document.querySelectorAll('#obraSteps input').forEach(function(inp){inp.addEventListener('change',aplicarGate);});
-  $('btnObraSalvar').onclick=salvarObra;initCustos(o);initContrato(o);
+  $('btnObraSalvar').onclick=salvarObra;initCustos(o);initEquipeObra(o);
   document.querySelectorAll('#obraSteps .waStep').forEach(function(btn){btn.onclick=function(){avisarWhats(o,+btn.dataset.wa);};});
   $('btnExcluirObra').onclick=excluirObraTudo;}
 function coletaEtapas(){const a=['','','','','','','',''];document.querySelectorAll('#obraSteps input').forEach(function(inp){a[+inp.dataset.s]=inp.value;});return a;}
@@ -1535,5 +1531,113 @@ async function gerarRelatorioOrc(){
   var bp=$('btnCt2Proc'); if(bp) bp.onclick=gerarProcuracaoTab;
   var br=$('btnOrcRel'); if(br) br.onclick=gerarRelatorioOrc;
 })();
+
+/* ================= CONTRATO DE SERVIÇO DA EQUIPE (obra) ================= */
+var _MES_MINI=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+var _eqCache={};
+function _htmlContratoServico(d){
+  function b(x){ return x||'________________'; }
+  var css="body{font-family:'Times New Roman',Georgia,serif;color:#111;font-size:11pt;line-height:1.55}"
+    +"h1{text-align:center;font-size:14pt;margin:0 0 20px}h2{font-size:11pt;margin:16px 0 6px}"
+    +"p{text-align:justify;margin:8px 0}b{font-weight:bold} .cl{margin:8px 0;text-align:justify}"
+    +".sig{margin-top:40px}.sig p{margin:34px 0 2px}";
+  var h='<html><head><meta charset="utf-8"><style>'+css+'</style></head><body>';
+  h+='<h1>CONTRATO DE PRESTAÇÃO DE SERVIÇOS</h1>';
+  h+='<p><b>CONTRATANTE:</b> <i>SUDOESTE SOLUÇÕES ELETRICAS LTDA</i>, inscrita no CNPJ sob n.º 51.045.101/0001-10, estabelecida na Rua Goes Calmon, n.º 145 – Edif. Manoelito Freitas, Sala 007, Bairro Centro, Vitória da Conquista, com endereço eletrônico uniaosolarvca@gmail.com.</p>';
+  h+='<p><b>CONTRATADO:</b> <i>'+b(d.nome)+'</i>, CNPJ nº '+b(d.cnpj)+', localizado na '+b(d.endereco)+', CEP nº '+b(d.cep)+', '+b(d.cidade)+'. Neste ato representado na forma dos seus atos constitutivos, tendo como representante legal: '+b(d.representante)+', brasileiro, CPF nº '+b(d.cpf)+', residente e domiciliado na '+b(d.endereco)+', CEP nº '+b(d.cep)+', '+b(d.cidade)+'.</p>';
+  h+='<p><i>As partes acima identificadas têm, entre si, justo e acertado o presente Contrato de Prestação de Serviços, que se regerá pelas cláusulas seguintes e pelas condições de preço, forma e termo de pagamento descritas no presente.</i></p>';
+  h+='<h2>1. DO OBJETO DO CONTRATO</h2>';
+  h+='<p class="cl"><b>Cláusula 1ª.</b> A parte <b>CONTRATADA</b>, por meio do presente contrato se compromete à prestação de serviços que possui como objeto: A instalação de um gerador fotovoltaico composto por '+b(d.modulos)+' e '+b(d.inversor)+', em imóvel localizado em '+b(d.enderecoInstalacao)+', estado da Bahia. – conforme os termos e condições a seguir elencados.</p>';
+  h+='<h2>2. DO PRAZO DO CONTRATO</h2>';
+  h+='<p class="cl"><b>Cláusula 2ª.</b> Este contrato possui prazo de vigência até a data da finalização da instalação fotovoltaica.</p>';
+  h+='<p class="cl"><b>Cláusula 3ª.</b> A empresa <b>CONTRATADA</b> deverá prestar os serviços obedecendo os prazos que forem determinados no documento em anexo, sendo de total responsabilidade do mesmo, comunicar caso não seja possível o cumprimento da prestação de serviços contratada, descrevendo os motivos e informando um novo prazo de previsão.</p>';
+  h+='<h2>3. DO PAGAMENTO</h2>';
+  h+='<p class="cl"><b>Cláusula 4ª.</b> O <b>CONTRATANTE</b>, deverá efetuar o pagamento de '+b(d.valor)+' ('+b(d.valorExtenso)+'), a serem pagos da seguinte forma: 50% do valor acordado no início da instalação e 50% após a conclusão completa do serviço.</p>';
+  h+='<h2>4. OBRIGAÇÕES DO CONTRATANTE</h2>';
+  h+='<p class="cl"><b>Cláusula 5ª.</b> O <b>CONTRATANTE</b> deverá fornecer ao <b>CONTRATADO</b> todas as informações necessárias à realização do serviço, devendo especificar os detalhes necessários à perfeita consecução do mesmo, e a forma de como ele deve ser entregue.</p>';
+  h+='<p class="cl"><b>Cláusula 6ª.</b> O <b>CONTRATANTE</b> deverá efetuar o pagamento de 50% do valor acordado no início da instalação e 50% após a conclusão completa do serviço.</p>';
+  h+='<p class="cl"><b>Cláusula 7ª.</b> Adimplir com o pagamento, conforme consta neste contrato, nas formas especificadas.</p>';
+  h+='<h2>5. OBRIGAÇÕES DO CONTRATADO</h2>';
+  h+='<p class="cl"><b>Cláusula 8ª.</b> É dever do <b>CONTRATADO</b> executar o serviço da forma requerida pelo <b>CONTRATANTE</b> e coerente com as normas vigentes, bem como enviar fotos da instalação, conforme solicitado no manual de instalação.</p>';
+  h+='<p class="cl"><b>Cláusula 9ª.</b> É dever do <b>CONTRATADO</b> oferecer a garantia do serviço pela duração de 12 meses após a conclusão do serviço.</p>';
+  h+='<p class="cl"><b>Cláusula 10ª.</b> O <b>CONTRATADO</b> deve sempre fornecer notas ou cupons fiscais referentes aos pagamentos do presente instrumento.</p>';
+  h+='<p class="cl"><b>Cláusula 11ª.</b> É dever do <b>CONTRATADO</b>, informar com antecedência a ocorrência de qualquer subcontratação do trabalho.</p>';
+  h+='<p class="cl"><b>Cláusula 12ª.</b> É dever do <b>CONTRATADO</b> e de seus subordinados o respeito a todas as especificações técnicas, normas e as condições de segurança que serão aplicáveis aos serviços que foram contratados, bem como o uso de EPI\'s (Equipamento de Proteção Individual), além da garantia de conclusão dos cursos de NR10 e NR35.</p>';
+  h+='<p class="cl"><b>Cláusula 13ª.</b> É dever do <b>CONTRATADO</b>, em caso de atos e omissões praticados por seus subordinados a responsabilização por qualquer dano seja ele causado ao contratante ou a terceiros.</p>';
+  h+='<p class="cl"><b>Cláusula 14ª.</b> É responsabilidade do <b>CONTRATADO</b>, todo ônus de origem trabalhista ou tributário referente aos funcionários que foram contratados para a prestação do serviço, conforme a legislação vigente, ficando a <b>CONTRATANTE</b> isenta de qualquer responsabilidade desse cunho em relação a eles.</p>';
+  h+='<p class="cl"><b>Cláusula 15ª.</b> É dever do <b>CONTRATADO</b>, providenciar aos seus subordinados os meios e equipamentos necessários para a execução correta da prestação do serviço.</p>';
+  h+='<p class="cl"><b>Cláusula 16ª.</b> É dever do <b>CONTRATADO</b>, que este possua seguro de vida, incluindo os casos de subcontratação, que todos possuam seguro de vida, para prevenção em caso de possíveis acidentes.</p>';
+  h+='<h2>6. DA RESCISÃO CONTRATUAL</h2>';
+  h+='<p class="cl">Se qualquer cláusula do contrato for descumprida, por qualquer uma das partes, implicará a imediata rescisão do presente documento, não podendo a parte que foi <b>CONTRATADA</b> se isentar das suas responsabilidades referentes ao cuidado e sigilo com as informações e dados do <b>CONTRATANTE</b>.</p>';
+  h+='<p class="cl"><b>Cláusula 17ª.</b> Em caso de descumprimento do presente contrato, caberá uma multa de 30% sobre o valor total do contrato firmado entre as partes.</p>';
+  h+='<p class="cl"><b>Cláusula 18ª.</b> É obrigada a devolução dos valores já pagos pelo <b>CONTRATADO</b>, se ocorrer rescisão por justa causa pela parte do <b>CONTRATANTE</b>.</p>';
+  h+='<p class="cl"><b>Cláusula 19ª.</b> Havendo rescisão por qualquer uma das partes, ainda assim o <b>CONTRATANTE</b> deverá efetuar o pagamento dos valores já vencidos.</p>';
+  h+='<p class="cl"><b>OBS:</b> O presente documento poderá ser rescindido, a qualquer momento, por qualquer uma das partes, sem qualquer motivo relevante. Contudo, deve ser respeitado o prazo de no mínimo 05 dias, onde as parcelas referentes aos serviços já prestados deverão ser pagas, ou, os serviços já pagos, deverão ser prestados e finalizados.</p>';
+  h+='<h2>7. DA EXTINÇÃO DO CONTRATO</h2>';
+  h+='<p class="cl">Será extinto o presente contrato quando ocorrer alguma das hipóteses dispostas a seguir:</p>';
+  h+='<p class="cl">a) Conclusão do serviço.<br>b) Extinção da Pessoa Jurídica.<br>c) Rescisão contratual em caso de falta de pagamento de qualquer uma das partes ou caso haja alguma impossibilidade de o contrato ser continuado, por situações de força maior ou de calamidade.</p>';
+  h+='<h2>8. DAS CONDIÇÕES GERAIS</h2>';
+  h+='<p class="cl"><b>Cláusula 20ª.</b> Fica compactuado entre as partes a total inexistência de vínculo trabalhista entre as partes contratantes, excluindo as obrigações previdenciárias e os encargos sociais, não havendo entre <b>CONTRATADO</b> e <b>CONTRATANTE</b> qualquer tipo de relação de subordinação.</p>';
+  h+='<p class="cl"><b>Cláusula 21ª.</b> Salvo com a expressa autorização do <b>CONTRATANTE</b>, não pode o <b>CONTRATADO</b> transferir ou subcontratar os serviços previstos neste instrumento, sob o risco de ocorrer a rescisão imediata.</p>';
+  h+='<p class="cl"><b>Cláusula 22ª.</b> Deverá a <b>CONTRATADA</b> assumir a responsabilidade por todas as providências e obrigações estabelecidas na legislação específica de acidentes de trabalho, quando, em ocorrência da espécie, forem vítimas os seus empregados durante a execução do contrato ou em conexão com ele.</p>';
+  h+='<h2>9. DO FORO</h2>';
+  h+='<p class="cl"><b>Cláusula 23ª.</b> Para dirimir quaisquer controvérsias oriundas do presente contrato, as partes elegem o foro da Comarca de Vitória da Conquista no Estado da Bahia.</p>';
+  h+='<p class="cl">Por estarem assim justos e contratados, firmam o presente instrumento, em duas vias de igual teor, juntamente com 2 (duas) testemunhas.</p>';
+  h+='<p>Vitória da Conquista, '+d.dataDia+' de '+d.dataMes+' de '+d.dataAno+'.</p>';
+  h+='<div class="sig"><p>____________________________________________</p><b>SUDOESTE SOLUÇÕES ELETRICAS LTDA - CONTRATANTE</b>';
+  h+='<p>____________________________________________</p><b>'+b(d.nome)+' - CONTRATADA</b></div>';
+  h+='</body></html>';
+  return h;
+}
+
+function _contratoServicoDados(obra, equipe, valorServ, endInst){
+  var mat=String(obra.material||'').split(' | ');
+  var hoje=new Date();
+  var vs=(+valorServ)||0;
+  return {
+    nome:esc(equipe.nome||''), cnpj:esc(equipe.cnpj||''), endereco:esc(equipe.endereco||''),
+    cep:esc(equipe.cep||''), cidade:esc(equipe.cidade||''), representante:esc(equipe.representante||''), cpf:esc(equipe.cpf||''),
+    cliente:esc(obra.cliente||''),
+    modulos:esc((mat[0]||'').trim()), inversor:esc((mat[1]||'').trim()),
+    enderecoInstalacao:esc(endInst||obra.endereco_instalacao||''),
+    valor: vs>0? brl(vs):'', valorExtenso: vs>0? extenso(vs):'',
+    dataDia:('0'+hoje.getDate()).slice(-2), dataMes:_MES_MINI[hoje.getMonth()], dataAno:hoje.getFullYear()
+  };
+}
+async function initEquipeObra(o){
+  if($('obraValServ')) $('obraValServ').value=(o.valor_servico!=null?o.valor_servico:'');
+  if($('obraEndInst')) $('obraEndInst').value=o.endereco_instalacao||'';
+  try{
+    var r=await sb.from('equipes').select('*').order('nome',{ascending:true});
+    var eqs=(r&&r.data)||[]; _eqCache={};
+    var sel=$('obraEquipe');
+    if(sel){ sel.innerHTML='<option value="">— selecione a equipe —</option>';
+      eqs.forEach(function(e){_eqCache[e.id]=e;var op=document.createElement('option');op.value=e.id;op.textContent=e.nome+(e.cidade?' · '+e.cidade:'');if(o.equipe_id!=null&&String(o.equipe_id)===String(e.id))op.selected=true;sel.appendChild(op);});
+    }
+  }catch(e){}
+  var bs=$('btnSalvarEquipe'); if(bs) bs.onclick=function(){salvarEquipeObra(o);};
+  var bc=$('btnContratoServ'); if(bc) bc.onclick=function(){gerarContratoServico(o);};
+}
+async function salvarEquipeObra(o){
+  var st=$('ctServStatus'); stMsg(st,'wait','Salvando…');
+  var eid=$('obraEquipe').value||'';
+  try{
+    await sb.from('obras').update({equipe_id:eid?+eid:null, valor_servico:(+$('obraValServ').value)||null, endereco_instalacao:$('obraEndInst').value.trim()||null}).eq('id',o.id);
+    o.equipe_id=eid?+eid:null; o.valor_servico=(+$('obraValServ').value)||null; o.endereco_instalacao=$('obraEndInst').value.trim();
+    stMsg(st,'ok','✓ Equipe e valor salvos na obra.'); carregarObras();
+  }catch(e){ stMsg(st,'err','Erro: '+(e&&e.message||e)); }
+}
+function gerarContratoServico(o){
+  var st=$('ctServStatus');
+  var eid=$('obraEquipe').value;
+  if(!eid||!_eqCache[eid]){ stMsg(st,'err','Selecione a equipe de execução (cadastre em Equipes se ainda não tiver).'); return; }
+  var vs=(+$('obraValServ').value)||0;
+  if(!(vs>0)){ stMsg(st,'err','Informe o valor do serviço da equipe.'); return; }
+  var d=_contratoServicoDados(o,_eqCache[eid],vs,$('obraEndInst').value.trim());
+  var html=_htmlContratoServico(d);
+  var w=window.open('','_blank'); if(!w){ stMsg(st,'err','Permita pop-ups (janelas) para abrir o contrato.'); return; }
+  w.document.open(); w.document.write(html); w.document.close(); setTimeout(function(){ try{w.focus();w.print();}catch(e){} },700);
+  stMsg(st,'ok','📄 Contrato de prestação de serviço da equipe gerado.');
+}
 </script>
 </body></html>
