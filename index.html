@@ -32,6 +32,9 @@ html,body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:var(--ink);bac
 .card h2{font-size:16px;color:var(--gd);margin-bottom:12px}
 .card.collapsed{padding-bottom:12px}.card.collapsed>*:not(h2){display:none!important}.card.collapsed>h2{margin-bottom:0}
 .cardcaret{cursor:pointer;margin-right:7px;color:var(--gd);user-select:none;font-size:12px;display:inline-block}
+.acbox{display:none;position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;border:1.5px solid var(--line);border-top:none;border-radius:0 0 10px 10px;max-height:230px;overflow-y:auto;box-shadow:0 8px 20px rgba(0,0,0,.10)}
+.acbox .acitem{padding:8px 11px;font-size:13px;cursor:pointer;border-bottom:1px solid #f0f2f0}
+.acbox .acitem:hover,.acbox .acitem.sel{background:#eafaf0;color:var(--gd);font-weight:600}
 .frow{margin-bottom:11px}
 .frow.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 label{display:block;font-size:12px;font-weight:600;color:#5a6a60;margin-bottom:4px}
@@ -137,7 +140,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
    <div class="grid">
     <div class="card"><h2>👤 Novo orçamento</h2>
      <div class="frow"><label>Nome do cliente *</label><input id="o_nome" placeholder="Ex.: Maria Silva"></div>
-     <div class="frow two"><div><label>Contato (WhatsApp)</label><input id="o_contato" placeholder="(77) 90000-0000"></div><div><label>Cidade</label><input id="o_cidade" placeholder="Ex.: Vitória da Conquista - BA"></div></div>
+     <div class="frow two"><div><label>Contato (WhatsApp)</label><input id="o_contato" placeholder="(77) 90000-0000"></div><div style="position:relative"><label>Cidade</label><input id="o_cidade" placeholder="Ex.: Vitória da Conquista - BA" autocomplete="off"><div id="o_cidade_ac" class="acbox"></div></div></div>
      <div class="frow two"><div><label>Tipo de telhado</label><select id="o_telhado"><option>Cerâmico</option><option>Fibrocimento</option><option>Metálico</option><option>Laje</option><option>Solo</option></select></div><div><label>Potência (kWp)</label><input id="o_pot" placeholder="Ex.: 8.68"></div></div>
      <div class="frow two"><div><label>Qtd. módulos</label><input id="o_qmod" type="number" placeholder="14"></div><div><label>Modelo do módulo</label><input id="o_mmod" placeholder="OSDA 620W"></div></div>
      <div class="frow two"><div><label>Qtd. inversores</label><input id="o_qinv" type="number" value="1"></div><div><label>Modelo do inversor</label><input id="o_minv" placeholder="SOFAR 6K"></div></div>
@@ -2044,5 +2047,39 @@ function renderExecLista(cli){
   var arr=(cli.arquivos&&cli.arquivos.vistoria)||[];
   box.innerHTML= arr.length ? '<div style="font-weight:700;font-size:13px;margin-bottom:4px;color:#0e6b31">Arquivos desta obra (Vistoria):</div>'+arr.map(function(f){return '<div style="font-size:12.5px;padding:3px 0"><a href="'+f.url+'" target="_blank" style="color:#0e6b31;text-decoration:none">📄 '+esc(f.nome)+'</a></div>';}).join('') : '';
 }
+
+/* ================= Autocomplete de cidades (Orçamento) ================= */
+(function(){
+  var inp=document.getElementById('o_cidade'), box=document.getElementById('o_cidade_ac');
+  if(!inp||!box) return;
+  var CIDS=null, sel=-1, atuais=[];
+  function lista(){ if(CIDS===null){ try{ CIDS=Object.keys(HSP); }catch(e){ CIDS=[]; } } return CIDS; }
+  function norm(s){ return (s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim(); }
+  function fecha(){ box.style.display='none'; sel=-1; }
+  function render(){
+    if(!atuais.length){ fecha(); return; }
+    box.innerHTML=atuais.map(function(c,i){ return '<div class="acitem'+(i===sel?' sel':'')+'" data-i="'+i+'">'+esc(c)+'</div>'; }).join('');
+    box.style.display='block';
+    box.querySelectorAll('.acitem').forEach(function(d){
+      d.onmousedown=function(e){ e.preventDefault(); inp.value=atuais[+d.dataset.i]; fecha(); };
+    });
+  }
+  inp.addEventListener('input', function(){
+    var q=norm(inp.value); sel=-1;
+    if(q.length<2){ fecha(); return; }
+    var arr=lista(), out=[];
+    for(var i=0;i<arr.length && out.length<12;i++){ if(norm(arr[i]).indexOf(q)>-1) out.push(arr[i]); }
+    atuais=out; render();
+  });
+  inp.addEventListener('keydown', function(e){
+    if(box.style.display!=='block') return;
+    if(e.key==='ArrowDown'){ e.preventDefault(); sel=Math.min(sel+1,atuais.length-1); render(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); sel=Math.max(sel-1,0); render(); }
+    else if(e.key==='Enter'){ if(sel>=0){ e.preventDefault(); inp.value=atuais[sel]; fecha(); } }
+    else if(e.key==='Escape'){ fecha(); }
+  });
+  inp.addEventListener('blur', function(){ setTimeout(fecha,150); });
+  document.addEventListener('click', function(e){ if(e.target!==inp && !box.contains(e.target)) fecha(); });
+})();
 </script>
 </body></html>
