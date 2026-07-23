@@ -1497,26 +1497,33 @@ function buildRelatorioOrc(orcs){
     var ano=(+o.ano)||(o.data?parseInt(String(o.data).slice(0,4),10):0); if(!ano)return;
     var mes=(+o.mes)||(o.data?parseInt(String(o.data).slice(5,7),10):0);
     if(!byYear[ano])byYear[ano]={};
-    if(!byYear[ano][mes])byYear[ano][mes]={qtd:0,pot:0,val:0};
-    byYear[ano][mes].qtd++; byYear[ano][mes].pot+=_numFrom(o.potencia)||0; byYear[ano][mes].val+=(+o.valor_final)||0;
+    if(!byYear[ano][mes])byYear[ano][mes]=[];
+    byYear[ano][mes].push(o);
   });
   var years=Object.keys(byYear).map(Number).sort(function(a,b){return a-b;});
-  var sections='';
+  var sections='', grandVal=0, grandQtd=0;
   years.forEach(function(y){
-    var tQ=0,tP=0,tV=0,rows='';
-    var months=Object.keys(byYear[y]).map(Number).sort(function(a,b){return a-b;});
-    months.forEach(function(m){var a=byYear[y][m];tQ+=a.qtd;tP+=a.pot;tV+=a.val;
-      rows+='<tr><td>'+(_REL_MES[m]||('Mês '+m))+'</td><td class="c">'+a.qtd+'</td><td class="r">'+a.pot.toFixed(2).replace('.',',')+' kWp</td><td class="r">'+brl(a.val)+'</td></tr>';});
     sections+='<div class="ic"><div class="ico">&#128197;</div><h2>ANO <b>'+y+'</b></h2><div class="ln"></div></div>';
-    sections+='<table class="rel"><tr><th>Mês</th><th>Qtd. orçamentos</th><th>Potência total</th><th>Valor total</th></tr>'+rows+'<tr class="tot"><td>TOTAL '+y+'</td><td class="c">'+tQ+'</td><td class="r">'+tP.toFixed(2).replace('.',',')+' kWp</td><td class="r">'+brl(tV)+'</td></tr></table>';
+    var months=Object.keys(byYear[y]).map(Number).sort(function(a,b){return a-b;});
+    months.forEach(function(m){
+      var arr=byYear[y][m].slice().sort(function(a,b){return (a.numero||0)-(b.numero||0);});
+      var sub=0, rows='';
+      arr.forEach(function(o){var v=(+o.valor_final)||0;sub+=v;grandVal+=v;grandQtd++;
+        var placas=_qtdFrom(o.modulos);
+        rows+='<tr><td class="c">'+(o.numero||'')+'</td><td>'+esc(o.nome||'')+'</td><td>'+esc(o.cidade||'')+'</td><td class="c">'+(placas||'—')+'</td><td class="inv">'+esc(o.inversor||'—')+'</td><td class="r">'+brl(v)+'</td></tr>';});
+      sections+='<div class="msub">'+(_REL_MES[m]||('Mês '+m))+' — '+arr.length+' orçamento(s) · subtotal '+brl(sub)+'</div>';
+      sections+='<table class="rel"><tr><th style="width:26px">Nº</th><th>Cliente</th><th>Cidade</th><th style="width:44px">Placas</th><th>Inversor</th><th style="width:80px;text-align:right">Valor</th></tr>'+rows+'</table>';
+    });
   });
   if(!sections)sections='<p style="text-align:center;color:#888">Nenhum orçamento cadastrado.</p>';
   var hoje=new Date(),dd=('0'+hoje.getDate()).slice(-2),mm=('0'+(hoje.getMonth()+1)).slice(-2);
-  var css=_propCSS()+'.rel{width:100%;border-collapse:collapse;margin:3mm 0 6mm;font-size:10.5pt}.rel th{background:#0e6b31;color:#fff;padding:2.5mm 3mm;text-align:right}.rel th:first-child{text-align:left}.rel td{padding:2.5mm 3mm;border-bottom:1px solid #e6e6e6}.rel td.r{text-align:right}.rel td.c{text-align:center}.rel tr.tot td{background:#0e6b31;color:#fff;font-weight:800}';
+  var css=_propCSS()+'.rel{width:100%;border-collapse:collapse;margin:1mm 0 4mm;font-size:8.8pt}.rel th{background:#0e6b31;color:#fff;padding:2mm 2.5mm;text-align:left}.rel td{padding:1.6mm 2.5mm;border-bottom:1px solid #e9e9e9;vertical-align:top}.rel td.c{text-align:center}.rel td.r{text-align:right;font-weight:700;white-space:nowrap}.rel td.inv{font-size:7.8pt;color:#444}.msub{background:#eafaf0;border-left:4px solid #0e6b31;padding:2mm 3mm;font-weight:800;color:#0e6b31;font-size:9.5pt;margin-top:3mm}.gtot{background:#0e6b31;color:#fff;font-weight:900;font-size:12.5pt;padding:3mm 4mm;border-radius:8px;text-align:right;margin-top:5mm}';
   var H='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de Orçamentos</title><style>'+css+'</style></head><body><div class="page">'+_HEAD()+'<div class="sec">';
   H+='<div class="ic"><div class="ico">&#128202;</div><h2>RELATÓRIO DE <b>ORÇAMENTOS</b></h2><div class="ln"></div></div>';
-  H+='<div class="fields"><div class="f">Orçamentos gerados por mês — emitido em '+dd+'/'+mm+'/'+hoje.getFullYear()+'</div></div>';
-  H+=sections+'</div>'+_FOOT+'</div></body></html>';
+  H+='<div class="fields"><div class="f">Orçamentos gerados, mês a mês — emitido em '+dd+'/'+mm+'/'+hoje.getFullYear()+'</div></div>';
+  H+=sections;
+  H+='<div class="gtot">TOTAL GERAL — '+grandQtd+' orçamento(s): '+brl(grandVal)+'</div>';
+  H+='</div>'+_FOOT+'</div></body></html>';
   return H;
 }
 async function gerarRelatorioOrc(){
