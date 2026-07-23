@@ -87,6 +87,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
    <div class="navitem" data-view="orcamento"><span class="ic">📄</span> Orçamento</div>
    <div class="navitem" data-view="obra"><span class="ic">🔧</span> Obras</div>
    <div class="navitem" data-view="contratos"><span class="ic">📑</span> Contratos</div>
+   <div class="navitem" data-view="dados"><span class="ic">📁</span> Dados</div>
    <div class="navitem" data-view="posvenda"><span class="ic">🤝</span> Pós-venda</div>
    <div class="navitem" data-view="marketing"><span class="ic">📣</span> Marketing</div>
    <div class="navitem" data-view="manutencoes"><span class="ic">🧰</span> Manutenções</div>
@@ -186,6 +187,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0 10px;cursor:pointer"><input type="checkbox" id="ct2_reg" style="width:auto"> Registrar no sistema (cria a obra, lança no financeiro e move o cliente para "Novo Cliente" no funil)</label>
      <div class="actions"><button class="btn primary" id="btnCt2Gerar">📄 Gerar Contrato PDF</button><button class="btn ok" id="btnCt2Proc">📄 Gerar Procuração PDF</button></div><div id="ct2Status" class="st"></div></div>
     <div class="card"><h2>📋 Contratos / obras <button class="btn ghost sm" id="btnCt2Refresh" style="float:right">↻</button></h2><div id="listaContratos"><div class="hint">carregando…</div></div></div>
+   </div>
+  </section>
+
+  <!-- ===================== DADOS ===================== -->
+  <section class="view" id="dados">
+   <div class="vhead"><h1>Dados dos clientes</h1><span class="tag">Ativo · Supabase</span></div>
+   <div class="vsub">Cada cliente com contrato gerado ganha sua pasta aqui: dados gerais, 1ª etapa, projeto e vistoria. Fotos e PDFs ficam salvos no banco.</div>
+   <div class="grid" style="grid-template-columns:.8fr 1.2fr">
+    <div class="card"><h2>👤 Clientes <button class="btn ghost sm" id="btnDadosRefresh" style="float:right">↻</button></h2>
+     <input id="dadosBusca" placeholder="🔎 Pesquisar cliente…" style="width:100%;box-sizing:border-box;margin:2px 0 8px;padding:8px 11px;border:1.5px solid var(--line);border-radius:9px;font-size:13px">
+     <div id="listaDados"><div class="hint">carregando…</div></div></div>
+    <div class="card" id="dadosDet"><div class="hint">Selecione um cliente na lista para ver a pasta.</div></div>
    </div>
   </section>
 
@@ -290,7 +303,7 @@ document.querySelectorAll('.navitem').forEach(function(n){n.onclick=function(){
   var v=n.dataset.view;
   if(v==='orcamento')carregarOrc(); if(v==='obra')carregarObras(); if(v==='posvenda')carregarPos();
   if(v==='marketing')carregarMkt(); if(v==='manutencoes')carregarManut(); if(v==='equipes')carregarEq();
-  if(v==='contratos')carregarContratos();
+  if(v==='contratos')carregarContratos(); if(v==='dados')carregarDados();
 };});
 ['s_data','e_data','o_data','pv_data','mn_data'].forEach(function(id){try{$(id).value=hojeISO();}catch(e){}});
 
@@ -1415,6 +1428,7 @@ function gerarContratoTab(){
   var html=_contratoHTML(c);
   var w=window.open('','_blank'); if(!w){ stMsg(st,'err','Permita pop-ups (janelas) para abrir o contrato.'); return; }
   w.document.open(); w.document.write(html); w.document.close(); setTimeout(function(){ try{w.focus();w.print();}catch(e){} },700);
+  _ensureClienteDados(nome,($('ct2_orc').value||''),valor,($('ct2_cpf').value||'').trim(),endereco,($('ct2_tel').value||'').trim(),($('ct2_proj').value||'').trim(),c);
   if($('ct2_reg').checked){ stMsg(st,'wait','Gerando contrato e registrando no sistema…'); _ct2registrar(nome,valor,$('ct2_tel').value.trim(),($('ct2_proj').value||'').trim(),eqList.join(' | '),endereco,dataISO,pagLines.join(' '),st); }
   else { stMsg(st,'ok','📄 Contrato gerado — confira os dados antes de imprimir/enviar.'); }
 }
@@ -1656,6 +1670,127 @@ function gerarContratoServico(o){
   var w=window.open('','_blank'); if(!w){ stMsg(st,'err','Permita pop-ups (janelas) para abrir o contrato.'); return; }
   w.document.open(); w.document.write(html); w.document.close(); setTimeout(function(){ try{w.focus();w.print();}catch(e){} },700);
   stMsg(st,'ok','📄 Contrato de prestação de serviço da equipe gerado.');
+}
+
+/* ================= ABA DADOS (pasta do cliente) ================= */
+var _dadosCache=[];
+var _CAT_ETAPA=[['conta_energia','Conta de energia'],['documento','Documento com foto'],['padrao','Foto do padrão de energia'],['medidor','Foto do medidor'],['procuracao','Procuração']];
+var _CAT_PROJ=[['parecer_acesso','Parecer de acesso'],['art','ART'],['relacionamento','Relacionamento operacional']];
+var _CAT_VIST=[['vistoria','Fotos de vistoria (PDF/imagem)']];
+
+async function carregarDados(){
+  var box=$('listaDados'); if(!box) return;
+  var r=await sb.from('clientes').select('*').order('id',{ascending:false});
+  if(r.error){ box.innerHTML='<div class="st show err">Erro: '+r.error.message+'</div>'; return; }
+  _dadosCache=r.data||[]; renderDadosList();
+}
+function renderDadosList(){
+  var box=$('listaDados'); if(!box) return;
+  var q=(($('dadosBusca')&&$('dadosBusca').value)||'').toLowerCase().trim();
+  var data=_dadosCache.filter(function(c){return !q||String(c.cliente||'').toLowerCase().indexOf(q)>-1;});
+  box.innerHTML='';
+  if(!data.length){ box.innerHTML='<div class="hint">'+(q?'Nenhum cliente com esse nome.':'Nenhum cliente ainda. Gere um contrato na aba Contratos.')+'</div>'; return; }
+  data.forEach(function(c){var d=document.createElement('div');d.className='listItem';
+    d.innerHTML='<div><div class="nm">'+esc(c.cliente)+'</div><div class="pj">'+(c.projeto?'Projeto '+esc(c.projeto)+' · ':'')+(c.valor?brl(c.valor):'')+'</div></div>';
+    d.onclick=function(){document.querySelectorAll('#listaDados .listItem').forEach(function(x){x.classList.remove('sel');});d.classList.add('sel');abrirCliente(c);};
+    box.appendChild(d);});
+}
+function _slotHTML(cli,cat,label){
+  var arr=(cli.arquivos&&cli.arquivos[cat])||[];
+  var files=arr.length?arr.map(function(f,i){return '<div class="fitem" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--line)"><a href="'+f.url+'" target="_blank" style="font-size:12.5px;color:var(--gd);text-decoration:none">📄 '+esc(f.nome)+'</a><button class="btn ghost sm fdel" data-cat="'+cat+'" data-idx="'+i+'" style="color:#c0392b;padding:2px 7px">🗑</button></div>';}).join(''):'<div class="hint" style="margin:2px 0">Nenhum arquivo.</div>';
+  return '<div class="slot" style="margin:8px 0;border:1.5px solid var(--line);border-radius:9px;padding:8px 10px">'
+   +'<div style="font-weight:700;font-size:12.5px;color:#1c2b22;margin-bottom:4px">'+label+'</div>'
+   +'<div class="slotfiles">'+files+'</div>'
+   +'<label class="btn ghost sm" style="margin-top:6px;display:inline-block;cursor:pointer">➕ Adicionar arquivo<input type="file" class="slotinput" data-cat="'+cat+'" accept="image/*,application/pdf" style="display:none"></label>'
+   +'</div>';
+}
+function abrirCliente(c){
+  dadosSel=c;
+  var h='<h2 style="margin-top:0">📁 '+esc(c.cliente)+'</h2>';
+  // 1. Dados gerais
+  h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:8px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 8px">1 · Dados gerais (orçamento e contrato)</h3>';
+  h+='<div class="frow two"><div><label>Nº do orçamento</label><input id="dg_num" value="'+esc(c.numero_orcamento!=null?c.numero_orcamento:'')+'"></div><div><label>Nº do projeto</label><input id="dg_proj" value="'+esc(c.projeto||'')+'"></div></div>';
+  h+='<div class="frow two"><div><label>Valor do contrato (R$)</label><input id="dg_valor" type="number" step="0.01" value="'+esc(c.valor!=null?c.valor:'')+'"></div><div><label>Contato</label><input id="dg_contato" value="'+esc(c.contato||'')+'"></div></div>';
+  h+='<div class="frow two"><div><label>CPF/CNPJ</label><input id="dg_cpf" value="'+esc(c.cpf||'')+'"></div><div><label>Endereço</label><input id="dg_end" value="'+esc(c.endereco||'')+'"></div></div>';
+  h+='<div class="actions"><button class="btn primary sm" id="btnDgSalvar">💾 Salvar dados gerais</button></div></div>';
+  // 2. Primeira etapa
+  h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">2 · Primeira etapa</h3>';
+  h+='<div class="frow"><label>📍 Link da localização do cliente (Google Maps)</label><div style="display:flex;gap:6px"><input id="dg_local" value="'+esc(c.localizacao||'')+'" placeholder="Cole aqui o link do Maps" style="flex:1"><button class="btn ghost sm" id="btnLocalSalvar">💾</button>'+(c.localizacao?'<a class="btn ghost sm" href="'+esc(c.localizacao)+'" target="_blank">Abrir</a>':'')+'</div></div>';
+  _CAT_ETAPA.forEach(function(x){h+=_slotHTML(c,x[0],x[1]);});
+  h+='</div>';
+  // 3. Projeto
+  h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">3 · Projeto</h3>';
+  _CAT_PROJ.forEach(function(x){h+=_slotHTML(c,x[0],x[1]);});
+  h+='</div>';
+  // 4. Vistoria
+  h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">4 · Vistoria</h3>';
+  _CAT_VIST.forEach(function(x){h+=_slotHTML(c,x[0],x[1]);});
+  h+='</div><div id="dadosStatus" class="st"></div>';
+  $('dadosDet').innerHTML=h;
+  $('btnDgSalvar').onclick=function(){salvarDadosGerais(c);};
+  $('btnLocalSalvar').onclick=function(){salvarLocalizacao(c);};
+  document.querySelectorAll('#dadosDet .slotinput').forEach(function(inp){inp.onchange=function(){var f=this.files&&this.files[0];if(f)uploadArquivo(c,this.dataset.cat,f);};});
+  document.querySelectorAll('#dadosDet .fdel').forEach(function(btn){btn.onclick=function(){delArquivo(c,btn.dataset.cat,+btn.dataset.idx);};});
+}
+async function salvarDadosGerais(c){
+  var st=$('dadosStatus'); stMsg(st,'wait','Salvando…');
+  try{
+    var patch={numero_orcamento:($('dg_num').value?parseInt($('dg_num').value,10):null),projeto:$('dg_proj').value.trim()||null,valor:(+$('dg_valor').value)||null,contato:$('dg_contato').value.trim()||null,cpf:$('dg_cpf').value.trim()||null,endereco:$('dg_end').value.trim()||null};
+    await sb.from('clientes').update(patch).eq('id',c.id);
+    Object.keys(patch).forEach(function(k){c[k]=patch[k];});
+    stMsg(st,'ok','✓ Dados gerais salvos.'); carregarDados();
+  }catch(e){ stMsg(st,'err','Erro: '+(e&&e.message||e)); }
+}
+async function salvarLocalizacao(c){
+  var st=$('dadosStatus'); stMsg(st,'wait','Salvando localização…');
+  try{ var loc=$('dg_local').value.trim()||null; await sb.from('clientes').update({localizacao:loc}).eq('id',c.id); c.localizacao=loc; stMsg(st,'ok','✓ Localização salva.'); }
+  catch(e){ stMsg(st,'err','Erro: '+(e&&e.message||e)); }
+}
+async function uploadArquivo(c,cat,file){
+  var st=$('dadosStatus'); stMsg(st,'wait','Enviando '+file.name+'…');
+  try{
+    var safe=String(file.name).replace(/[^\w.\-]+/g,'_');
+    var path='clientes/'+c.id+'/'+cat+'/'+Date.now()+'_'+safe;
+    var up=await sb.storage.from('documentos').upload(path,file,{upsert:true});
+    if(up.error) throw up.error;
+    var url=sb.storage.from('documentos').getPublicUrl(path).data.publicUrl;
+    var arqs=c.arquivos||{}; if(!arqs[cat])arqs[cat]=[]; arqs[cat].push({nome:file.name,url:url,path:path});
+    await sb.from('clientes').update({arquivos:arqs}).eq('id',c.id);
+    c.arquivos=arqs; stMsg(st,'ok','✓ Arquivo salvo.'); abrirCliente(c);
+  }catch(e){ stMsg(st,'err','Erro ao enviar: '+(e&&e.message||e)); }
+}
+async function delArquivo(c,cat,idx){
+  if(!confirm('Excluir este arquivo?')) return;
+  var arqs=c.arquivos||{}; var f=(arqs[cat]||[])[idx]; if(!f) return;
+  try{ if(f.path){ try{await sb.storage.from('documentos').remove([f.path]);}catch(e){} }
+    arqs[cat].splice(idx,1); await sb.from('clientes').update({arquivos:arqs}).eq('id',c.id); c.arquivos=arqs; abrirCliente(c); }
+  catch(e){ alert('Erro: '+(e&&e.message||e)); }
+}
+var dadosSel=null;
+(function(){var q=$('dadosBusca');if(q)q.oninput=renderDadosList;var r=$('btnDadosRefresh');if(r)r.onclick=carregarDados;})();
+
+/* Cria a pasta do cliente quando o contrato é gerado + salva a procuração */
+async function _ensureClienteDados(nome,num,valor,cpf,endereco,contato,projeto,procData){
+  try{
+    var q=await sb.from('clientes').select('*').eq('cliente',nome).limit(1);
+    var cli=(q.data&&q.data[0])||null;
+    if(!cli){
+      var ins=await sb.from('clientes').insert({cliente:nome,numero_orcamento:num?parseInt(num,10):null,projeto:projeto||null,valor:valor||null,cpf:cpf||null,endereco:endereco||null,contato:contato||null,arquivos:{}}).select();
+      cli=(ins.data&&ins.data[0])||null;
+    }
+    if(cli){
+      var arqs=cli.arquivos||{};
+      if(!(arqs.procuracao&&arqs.procuracao.length)&&procData){
+        try{
+          var html=buildProcuracaoDoc(procData);
+          var path='clientes/'+cli.id+'/procuracao/Procuracao.html';
+          var blob=new Blob([html],{type:'text/html'});
+          var up=await sb.storage.from('documentos').upload(path,blob,{upsert:true,contentType:'text/html'});
+          if(!up.error){ var url=sb.storage.from('documentos').getPublicUrl(path).data.publicUrl; if(!arqs.procuracao)arqs.procuracao=[]; arqs.procuracao.push({nome:'Procuração',url:url,path:path}); await sb.from('clientes').update({arquivos:arqs}).eq('id',cli.id); }
+        }catch(e){}
+      }
+    }
+  }catch(e){}
 }
 </script>
 </body></html>
