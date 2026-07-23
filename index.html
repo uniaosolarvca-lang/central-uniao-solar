@@ -195,8 +195,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
    <div class="vhead"><h1>Dados dos clientes</h1><span class="tag">Ativo · Supabase</span></div>
    <div class="vsub">Cada cliente com contrato gerado ganha sua pasta aqui: dados gerais, 1ª etapa, projeto e vistoria. Fotos e PDFs ficam salvos no banco.</div>
    <div class="grid" style="grid-template-columns:.8fr 1.2fr">
-    <div class="card"><h2>👤 Clientes <button class="btn ghost sm" id="btnDadosRefresh" style="float:right">↻</button></h2>
+    <div class="card"><h2>👤 Clientes <span style="float:right"><button class="btn ok sm" id="btnDadosSync">🔄 Sincronizar</button> <button class="btn ghost sm" id="btnDadosRefresh">↻</button></span></h2>
      <input id="dadosBusca" placeholder="🔎 Pesquisar cliente…" style="width:100%;box-sizing:border-box;margin:2px 0 8px;padding:8px 11px;border:1.5px solid var(--line);border-radius:9px;font-size:13px">
+     <div id="dadosSyncStatus" class="st"></div>
      <div id="listaDados"><div class="hint">carregando…</div></div></div>
     <div class="card" id="dadosDet"><div class="hint">Selecione um cliente na lista para ver a pasta.</div></div>
    </div>
@@ -1776,7 +1777,27 @@ async function delArquivo(c,cat,idx){
   catch(e){ alert('Erro: '+(e&&e.message||e)); }
 }
 var dadosSel=null;
-(function(){var q=$('dadosBusca');if(q)q.oninput=renderDadosList;var r=$('btnDadosRefresh');if(r)r.onclick=carregarDados;})();
+async function sincronizarClientes(){
+  var st=$('dadosSyncStatus'); if(st){st.className='st show wait';st.textContent='Sincronizando clientes com contrato…';}
+  var b=$('btnDadosSync'); if(b)b.disabled=true;
+  try{
+    var ro=await sb.from('obras').select('*'); var obras=(ro.data)||[];
+    var rf=await sb.from('financeiro').select('*'); var fin=(rf.data)||[];
+    var rc=await sb.from('clientes').select('cliente'); var existentes={};
+    (rc.data||[]).forEach(function(c){existentes[String(c.cliente||'').trim().toLowerCase()]=true;});
+    var novos=[];
+    obras.forEach(function(o){var k=String(o.cliente||'').trim().toLowerCase();if(!k||existentes[k])return;existentes[k]=true;
+      novos.push({cliente:o.cliente,projeto:o.projeto||null,valor:o.valor||null,contato:o.telefone||null,endereco:o.endereco_instalacao||null,obra_id:o.id,arquivos:{}});});
+    fin.forEach(function(f){ if(String(f.origem||'').toLowerCase().indexOf('contrato')<0)return; var nome=f.cliente_fornecedor||''; var k=String(nome).trim().toLowerCase(); if(!k||existentes[k])return; existentes[k]=true;
+      novos.push({cliente:nome,valor:(+f.valor)||null,arquivos:{}}); });
+    if(!novos.length){ if(st){st.className='st show ok';st.textContent='✓ Tudo já sincronizado — nenhum cliente novo.';} carregarDados(); if(b)b.disabled=false; return; }
+    await sb.from('clientes').insert(novos);
+    if(st){st.className='st show ok';st.textContent='✓ '+novos.length+' cliente(s) adicionado(s) à aba Dados.';}
+    carregarDados();
+  }catch(e){ if(st){st.className='st show err';st.textContent='Erro ao sincronizar: '+(e&&e.message||e);} }
+  if(b)b.disabled=false;
+}
+(function(){var q=$('dadosBusca');if(q)q.oninput=renderDadosList;var r=$('btnDadosRefresh');if(r)r.onclick=carregarDados;var s=$('btnDadosSync');if(s)s.onclick=sincronizarClientes;})();
 
 /* Cria a pasta do cliente quando o contrato é gerado + salva a procuração */
 async function _ensureClienteDados(nome,num,valor,cpf,endereco,contato,projeto,procData){
