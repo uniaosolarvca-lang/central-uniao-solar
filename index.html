@@ -398,12 +398,30 @@ function renderOrc(){const box=$('listaOrc');if(!box)return;
   box.innerHTML='';
   if(!data.length){box.innerHTML='<div class="hint">'+(q?'Nenhum orçamento com esse nome.':'Nenhum orçamento ainda.')+'</div>';return;}
   data.forEach(function(o){const d=document.createElement('div');d.className='item';d.style.padding='9px 11px';
-    d.innerHTML='<div class="t">#'+o.numero+' · '+esc(o.nome)+'</div><div class="sub">'+esc(o.cidade||'')+(o.potencia?' · '+esc(o.potencia)+' kWp':'')+' · '+brl(o.valor_final)+'</div><div class="act" style="margin-top:6px;flex-wrap:wrap;gap:5px"><button class="btn ghost sm bprop">📄 Proposta</button><button class="btn ghost sm binsta">📸 Post</button><button class="btn ghost sm bedit">✏️ Editar</button><button class="btn ghost sm bdel" style="color:#c0392b">🗑</button></div>';
+    var plan=o.planilha_url
+      ? '<button class="btn ok sm bplanopen">📂 Abrir planilha</button><label class="btn ghost sm" style="cursor:pointer">🔁 Trocar<input type="file" class="planinput" style="display:none" accept=".xlsx,.xls,.xlsm,.csv,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label>'
+      : '<label class="btn ghost sm" style="cursor:pointer">📊 Enviar planilha de dimensionamento<input type="file" class="planinput" style="display:none" accept=".xlsx,.xls,.xlsm,.csv,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label>';
+    d.innerHTML='<div class="t">#'+o.numero+' · '+esc(o.nome)+'</div><div class="sub">'+esc(o.cidade||'')+(o.potencia?' · '+esc(o.potencia)+' kWp':'')+' · '+brl(o.valor_final)+(o.planilha_url?' · <span style="color:var(--gd)">📊 planilha anexada</span>':'')+'</div><div class="act" style="margin-top:6px;flex-wrap:wrap;gap:5px"><button class="btn ghost sm bprop">📄 Proposta</button><button class="btn ghost sm binsta">📸 Post</button><button class="btn ghost sm bedit">✏️ Editar</button><button class="btn ghost sm bdel" style="color:#c0392b">🗑</button></div><div class="act" style="margin-top:4px;flex-wrap:wrap;gap:5px">'+plan+'</div>';
     d.querySelector('.bprop').onclick=function(){propostaFromOrc(o);};
     d.querySelector('.binsta').onclick=function(){abrirInstagram(o);};
     d.querySelector('.bedit').onclick=function(){editarOrc(o);};
     d.querySelector('.bdel').onclick=function(){excluirOrc(o);};
+    var bpo=d.querySelector('.bplanopen'); if(bpo) bpo.onclick=function(){window.open(o.planilha_url,'_blank');};
+    var pin=d.querySelector('.planinput'); if(pin) pin.onchange=function(){var f=this.files&&this.files[0];if(f)uploadPlanilhaOrc(o,f);};
     box.appendChild(d);});}
+async function uploadPlanilhaOrc(o,file){
+  var st=$('stOrc'); stMsg(st,'wait','Enviando planilha de '+o.nome+'…');
+  try{
+    var safe=String(file.name).replace(/[^\w.\-]+/g,'_');
+    var path='orcamentos/'+o.numero+'/'+Date.now()+'_'+safe;
+    var up=await sb.storage.from('documentos').upload(path,file,{upsert:true});
+    if(up.error) throw up.error;
+    var url=sb.storage.from('documentos').getPublicUrl(path).data.publicUrl;
+    await sb.from('orcamentos').update({planilha_url:url,planilha_nome:file.name,planilha_path:path}).eq('numero',o.numero);
+    try{ await sb.from('clientes').update({planilha_url:url,planilha_nome:file.name,planilha_path:path}).eq('numero_orcamento',o.numero); }catch(e){}
+    stMsg(st,'ok','✓ Planilha salva no orçamento #'+o.numero+'.'); carregarOrc();
+  }catch(e){ stMsg(st,'err','Erro ao enviar a planilha: '+(e&&e.message||e)); }
+}
 (function(){var q=$('orcBusca');if(q)q.oninput=function(){var b=$('listaOrc');if(this.value.trim()&&b)b.style.display='';var mn=$('btnOrcMin');if(mn)mn.textContent='🔽 Minimizar';renderOrc();};
   var mn=$('btnOrcMin');if(mn)mn.onclick=function(){var b=$('listaOrc');var hide=b.style.display!=='none';b.style.display=hide?'none':'';this.textContent=hide?'🔼 Expandir':'🔽 Minimizar';};})();
 $('btnOrcRefresh').onclick=carregarOrc;
@@ -1756,6 +1774,7 @@ function abrirCliente(c){
   h+='<div class="frow two"><div><label>Nº do orçamento</label><input id="dg_num" value="'+esc(c.numero_orcamento!=null?c.numero_orcamento:'')+'"></div><div><label>Nº do projeto</label><input id="dg_proj" value="'+esc(c.projeto||'')+'"></div></div>';
   h+='<div class="frow two"><div><label>Valor do contrato (R$)</label><input id="dg_valor" type="number" step="0.01" value="'+esc(c.valor!=null?c.valor:'')+'"></div><div><label>Contato</label><input id="dg_contato" value="'+esc(c.contato||'')+'"></div></div>';
   h+='<div class="frow two"><div><label>CPF/CNPJ</label><input id="dg_cpf" value="'+esc(c.cpf||'')+'"></div><div><label>Endereço</label><input id="dg_end" value="'+esc(c.endereco||'')+'"></div></div>';
+  h+='<div class="frow"><label>📊 Planilha de dimensionamento</label><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">'+(c.planilha_url?'<button class="btn ok sm" id="btnPlanAbrir">📂 Abrir planilha</button><span class="hint">'+esc(c.planilha_nome||'planilha.xlsx')+'</span>':'<span class="hint">Nenhuma planilha ainda.</span>')+'<label class="btn ghost sm" style="cursor:pointer">'+(c.planilha_url?'🔁 Trocar':'⬆ Enviar')+'<input type="file" id="dgPlanInput" style="display:none" accept=".xlsx,.xls,.xlsm,.csv,.ods,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label></div></div>';
   h+='<div class="actions"><button class="btn primary sm" id="btnDgSalvar">💾 Salvar dados gerais</button></div></div>';
   // 2. Primeira etapa
   h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">2 · Primeira etapa <button class="btn ok sm" data-zip="etapa" style="float:right;font-weight:600">📦 Baixar tudo (ZIP)</button></h3>';
@@ -1777,6 +1796,8 @@ function abrirCliente(c){
   $('dadosDet').innerHTML=h;
   $('btnDgSalvar').onclick=function(){salvarDadosGerais(c);};
   $('btnLocalSalvar').onclick=function(){salvarLocalizacao(c);};
+  var bpa=$('btnPlanAbrir'); if(bpa) bpa.onclick=function(){window.open(c.planilha_url,'_blank');};
+  var dpi=$('dgPlanInput'); if(dpi) dpi.onchange=function(){var f=this.files&&this.files[0];if(f)uploadPlanilhaCliente(c,f);};
   document.querySelectorAll('#dadosDet .slotinput').forEach(function(inp){inp.onchange=function(){var f=this.files&&this.files[0];if(f)uploadArquivo(c,this.dataset.cat,f);};});
   document.querySelectorAll('#dadosDet .fdel').forEach(function(btn){btn.onclick=function(){delArquivo(c,btn.dataset.cat,+btn.dataset.idx);};});
   document.querySelectorAll('#dadosDet [data-zip]').forEach(function(btn){btn.onclick=function(){var z=btn.dataset.zip;if(z==='etapa')baixarEtapaZip(c,_CAT_ETAPA.concat(Object.keys(c.arquivos||{}).filter(function(k){return /^conta_extra_/.test(k);}).map(function(k){return [k,'Conta de energia extra '+k.replace('conta_extra_','')];})),'Primeira etapa');else if(z==='projeto')baixarEtapaZip(c,_CAT_PROJ,'Projeto');else if(z==='vistoria')baixarEtapaZip(c,_CAT_VIST,'Vistoria');};});
@@ -1796,6 +1817,20 @@ async function salvarLocalizacao(c){
   var st=$('dadosStatus'); stMsg(st,'wait','Salvando localização…');
   try{ var loc=$('dg_local').value.trim()||null; await sb.from('clientes').update({localizacao:loc}).eq('id',c.id); c.localizacao=loc; stMsg(st,'ok','✓ Localização salva.'); }
   catch(e){ stMsg(st,'err','Erro: '+(e&&e.message||e)); }
+}
+async function uploadPlanilhaCliente(c,file){
+  var st=$('dadosStatus'); stMsg(st,'wait','Enviando planilha…');
+  try{
+    var safe=String(file.name).replace(/[^\w.\-]+/g,'_');
+    var path='clientes/'+c.id+'/planilha/'+Date.now()+'_'+safe;
+    var up=await sb.storage.from('documentos').upload(path,file,{upsert:true});
+    if(up.error) throw up.error;
+    var url=sb.storage.from('documentos').getPublicUrl(path).data.publicUrl;
+    await sb.from('clientes').update({planilha_url:url,planilha_nome:file.name,planilha_path:path}).eq('id',c.id);
+    if(c.numero_orcamento){ try{ await sb.from('orcamentos').update({planilha_url:url,planilha_nome:file.name,planilha_path:path}).eq('numero',c.numero_orcamento); }catch(e){} }
+    c.planilha_url=url; c.planilha_nome=file.name; c.planilha_path=path;
+    stMsg(st,'ok','✓ Planilha salva.'); abrirCliente(c);
+  }catch(e){ stMsg(st,'err','Erro ao enviar a planilha: '+(e&&e.message||e)); }
 }
 async function uploadArquivo(c,cat,file){
   var st=$('dadosStatus'); stMsg(st,'wait','Enviando '+file.name+'…');
@@ -1843,11 +1878,17 @@ async function sincronizarClientes(){
 /* Cria a pasta do cliente quando o contrato é gerado + salva a procuração */
 async function _ensureClienteDados(nome,num,valor,cpf,endereco,contato,projeto,procData){
   try{
+    var plan=null;
+    if(num){ try{ var qo=await sb.from('orcamentos').select('planilha_url,planilha_nome,planilha_path').eq('numero',num).limit(1); var op=qo.data&&qo.data[0]; if(op&&op.planilha_url) plan=op; }catch(e){} }
     var q=await sb.from('clientes').select('*').eq('cliente',nome).limit(1);
     var cli=(q.data&&q.data[0])||null;
     if(!cli){
-      var ins=await sb.from('clientes').insert({cliente:nome,numero_orcamento:num?parseInt(num,10):null,projeto:projeto||null,valor:valor||null,cpf:cpf||null,endereco:endereco||null,contato:contato||null,arquivos:{}}).select();
+      var rec={cliente:nome,numero_orcamento:num?parseInt(num,10):null,projeto:projeto||null,valor:valor||null,cpf:cpf||null,endereco:endereco||null,contato:contato||null,arquivos:{}};
+      if(plan){ rec.planilha_url=plan.planilha_url; rec.planilha_nome=plan.planilha_nome; rec.planilha_path=plan.planilha_path; }
+      var ins=await sb.from('clientes').insert(rec).select();
       cli=(ins.data&&ins.data[0])||null;
+    } else if(plan && !cli.planilha_url){
+      try{ await sb.from('clientes').update({planilha_url:plan.planilha_url,planilha_nome:plan.planilha_nome,planilha_path:plan.planilha_path}).eq('id',cli.id); cli.planilha_url=plan.planilha_url; }catch(e){}
     }
     if(cli){
       var arqs=cli.arquivos||{};
