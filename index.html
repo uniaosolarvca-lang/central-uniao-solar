@@ -1713,6 +1713,30 @@ function _slotHTML(cli,cat,label){
    +'<label class="btn ghost sm" style="margin-top:6px;display:inline-block;cursor:pointer">➕ Adicionar arquivo<input type="file" class="slotinput" data-cat="'+cat+'" accept="image/*,application/pdf" style="display:none"></label>'
    +'</div>';
 }
+function _slotExtraHTML(cli,key,n){
+  var arr=(cli.arquivos&&cli.arquivos[key])||[];
+  var files=arr.length?arr.map(function(f,i){return '<div class="fitem" style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:4px 0;border-bottom:1px dashed var(--line)"><a href="'+f.url+'" target="_blank" style="font-size:12.5px;color:var(--gd);text-decoration:none">📄 '+esc(f.nome)+'</a><button class="btn ghost sm fdel" data-cat="'+key+'" data-idx="'+i+'" style="color:#c0392b;padding:2px 7px">🗑</button></div>';}).join(''):'<div class="hint" style="margin:2px 0">Nenhum arquivo.</div>';
+  return '<div class="slot" style="margin:8px 0;border:1.5px solid var(--line);border-radius:9px;padding:8px 10px">'
+   +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="font-weight:700;font-size:12.5px;color:#1c2b22">Conta de energia extra '+n+'</div><button class="btn ghost sm rmextra" data-key="'+key+'" style="color:#c0392b;padding:2px 7px">🗑 remover</button></div>'
+   +'<div class="slotfiles">'+files+'</div>'
+   +'<label class="btn ghost sm" style="margin-top:6px;display:inline-block;cursor:pointer">➕ Adicionar arquivo<input type="file" class="slotinput" data-cat="'+key+'" accept="image/*,application/pdf" style="display:none"></label>'
+   +'</div>';
+}
+async function adicionarContaExtra(c){
+  var arqs=c.arquivos||{}; var idx=1; while(arqs['conta_extra_'+idx]) idx++;
+  arqs['conta_extra_'+idx]=[];
+  try{ await sb.from('clientes').update({arquivos:arqs}).eq('id',c.id); c.arquivos=arqs; abrirCliente(c); }
+  catch(e){ alert('Erro: '+(e&&e.message||e)); }
+}
+async function removerContaExtra(c,key){
+  var arr=(c.arquivos&&c.arquivos[key])||[];
+  if(arr.length && !confirm('Esta conta extra tem arquivo(s). Remover mesmo assim?')) return;
+  var arqs=c.arquivos||{};
+  arr.forEach(function(f){ if(f.path){ try{ sb.storage.from('documentos').remove([f.path]); }catch(e){} } });
+  delete arqs[key];
+  try{ await sb.from('clientes').update({arquivos:arqs}).eq('id',c.id); c.arquivos=arqs; abrirCliente(c); }
+  catch(e){ alert('Erro: '+(e&&e.message||e)); }
+}
 function abrirCliente(c){
   dadosSel=c;
   var h='<h2 style="margin-top:0">📁 '+esc(c.cliente)+'</h2>';
@@ -1726,6 +1750,10 @@ function abrirCliente(c){
   h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">2 · Primeira etapa <button class="btn ok sm" data-zip="etapa" style="float:right;font-weight:600">📦 Baixar tudo (ZIP)</button></h3>';
   h+='<div class="frow"><label>📍 Link da localização do cliente (Google Maps)</label><div style="display:flex;gap:6px"><input id="dg_local" value="'+esc(c.localizacao||'')+'" placeholder="Cole aqui o link do Maps" style="flex:1"><button class="btn ghost sm" id="btnLocalSalvar">💾</button>'+(c.localizacao?'<a class="btn ghost sm" href="'+esc(c.localizacao)+'" target="_blank">Abrir</a>':'')+'</div></div>';
   _CAT_ETAPA.forEach(function(x){h+=_slotHTML(c,x[0],x[1]);});
+  var _extras=Object.keys(c.arquivos||{}).filter(function(k){return /^conta_extra_/.test(k);}).sort(function(a,b){return (parseInt(a.replace('conta_extra_',''),10)||0)-(parseInt(b.replace('conta_extra_',''),10)||0);});
+  _extras.forEach(function(k){h+=_slotExtraHTML(c,k,k.replace('conta_extra_',''));});
+  h+='<button class="btn ghost sm" id="btnContaExtra" style="margin-top:4px">➕ Adicionar conta de energia extra</button>';
+  h+='<div class="hint" style="margin:4px 0 0">Contas extras são opcionais — use quando o projeto tiver mais de uma unidade consumidora.</div>';
   h+='</div>';
   // 3. Projeto
   h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">3 · Projeto <button class="btn ok sm" data-zip="projeto" style="float:right;font-weight:600">📦 Baixar tudo (ZIP)</button></h3>';
@@ -1740,7 +1768,9 @@ function abrirCliente(c){
   $('btnLocalSalvar').onclick=function(){salvarLocalizacao(c);};
   document.querySelectorAll('#dadosDet .slotinput').forEach(function(inp){inp.onchange=function(){var f=this.files&&this.files[0];if(f)uploadArquivo(c,this.dataset.cat,f);};});
   document.querySelectorAll('#dadosDet .fdel').forEach(function(btn){btn.onclick=function(){delArquivo(c,btn.dataset.cat,+btn.dataset.idx);};});
-  document.querySelectorAll('#dadosDet [data-zip]').forEach(function(btn){btn.onclick=function(){var z=btn.dataset.zip;if(z==='etapa')baixarEtapaZip(c,_CAT_ETAPA,'Primeira etapa');else if(z==='projeto')baixarEtapaZip(c,_CAT_PROJ,'Projeto');else if(z==='vistoria')baixarEtapaZip(c,_CAT_VIST,'Vistoria');};});
+  document.querySelectorAll('#dadosDet [data-zip]').forEach(function(btn){btn.onclick=function(){var z=btn.dataset.zip;if(z==='etapa')baixarEtapaZip(c,_CAT_ETAPA.concat(Object.keys(c.arquivos||{}).filter(function(k){return /^conta_extra_/.test(k);}).map(function(k){return [k,'Conta de energia extra '+k.replace('conta_extra_','')];})),'Primeira etapa');else if(z==='projeto')baixarEtapaZip(c,_CAT_PROJ,'Projeto');else if(z==='vistoria')baixarEtapaZip(c,_CAT_VIST,'Vistoria');};});
+  var bce=$('btnContaExtra'); if(bce) bce.onclick=function(){adicionarContaExtra(c);};
+  document.querySelectorAll('#dadosDet .rmextra').forEach(function(btn){btn.onclick=function(){removerContaExtra(c,btn.dataset.key);};});
 }
 async function salvarDadosGerais(c){
   var st=$('dadosStatus'); stMsg(st,'wait','Salvando…');
