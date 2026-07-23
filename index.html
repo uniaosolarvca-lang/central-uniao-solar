@@ -66,6 +66,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
 .badge.ap{background:#fef7e6;color:#b9770e}.badge.ab{background:#eaf6ef;color:var(--gd)}
 .listItem{display:flex;justify-content:space-between;align-items:center;gap:8px;border:1.5px solid var(--line);border-radius:11px;padding:10px 12px;margin-top:9px;cursor:pointer}
 .listItem:hover{background:#f4fbf6;border-color:#bfe6cd}.listItem.sel{background:#eafaf0;border-color:var(--g)}
+.listItem.parada{background:#fdecea;border-color:#e6a99f}.listItem.parada:hover{background:#fbe0dc}
 .listItem .nm{font-weight:700;color:#1c2b22;font-size:13.5px}.listItem .pj{font-size:11.5px;color:#6a7a70}
 .pill{font-size:11px;font-weight:800;padding:3px 9px;border-radius:20px;background:#eef2f0;color:#5a6a60}.pill.done{background:var(--gd);color:#fff}
 .step{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
@@ -138,6 +139,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
      <div class="frow two"><div><label>Qtd. inversores</label><input id="o_qinv" type="number" value="1"></div><div><label>Modelo do inversor</label><input id="o_minv" placeholder="SOFAR 6K"></div></div>
      <div class="frow two"><div><label>Valor do material (R$)</label><input id="o_vmat" type="number" step="0.01"></div><div><label>Valor final (R$) *</label><input id="o_vfin" type="number" step="0.01"></div></div>
      <div class="frow"><label>Data</label><input id="o_data" type="date"></div>
+     <input type="hidden" id="o_editid">
      <div class="actions"><button class="btn primary" id="btnOrc">✓ Salvar orçamento</button></div><div id="stOrc" class="st"></div></div>
     <div class="card"><h2>📋 Orçamentos <button class="btn ghost sm" id="btnOrcRefresh" style="float:right">↻</button></h2><div id="listaOrc"><div class="hint">carregando…</div></div></div>
    </div>
@@ -183,6 +185,26 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
    <div class="vhead"><h1>Marketing</h1><span class="tag">Ativo · Supabase</span></div>
    <div class="vsub">Funil de vendas: todos os orçamentos viram leads. Mude a etapa de cada um — fica salvo no banco.</div>
    <div class="card"><h2>Funil <button class="btn ghost sm" id="btnMktRefresh" style="float:right">↻ Atualizar</button></h2><div id="mktBoard" class="mktboard"><div class="hint">carregando…</div></div></div>
+   <div class="card" id="igCard"><h2>📸 Post para Instagram</h2>
+    <div class="vsub" style="margin:0 0 8px">Gere a arte de "projeto concluído" para postar. Preencha os dados (ou clique em 📸 Post num orçamento) e envie a foto da obra.</div>
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px">
+     <div>
+      <div class="frow"><label>Cidade</label><input id="ig_cidade" placeholder="Vitória da Conquista - BA"></div>
+      <div class="frow two"><div><label>Nº de painéis</label><input id="ig_paineis" placeholder="12"></div><div><label>Potência (kWp)</label><input id="ig_kwp" placeholder="8.52"></div></div>
+      <div class="frow two"><div><label>Geração (kWh/mês)</label><input id="ig_geracao" placeholder="1040"></div><div><label>Economia anual (R$)</label><input id="ig_economia" placeholder="9800"></div></div>
+      <div class="frow"><label>Potência da placa (W)</label><input id="ig_placaw" placeholder="710"></div>
+      <div class="frow"><label>Foto da obra</label><input id="ig_foto" type="file" accept="image/*"></div>
+      <div class="actions"><button class="btn primary sm" id="btnIgGerar">🎨 Gerar arte</button><a class="btn ok sm" id="igBaixar" download="post-uniao-solar.png" style="display:none">⬇ Baixar imagem</a></div>
+      <div id="igStatus" class="st"></div>
+      <div class="frow" style="margin-top:10px"><label>Legenda</label><textarea id="ig_legenda" style="min-height:90px"></textarea></div>
+      <div class="actions"><button class="btn ghost sm" id="btnIgLegenda">✍ Gerar legenda</button><button class="btn ghost sm" id="btnIgVariar">🔀 Variar</button><button class="btn ghost sm" id="btnIgCopiar">📋 Copiar</button></div>
+     </div>
+     <div style="text-align:center">
+      <div id="igPlaceholder" class="hint" style="border:1.5px dashed var(--line);border-radius:12px;padding:40px 10px">A arte gerada aparece aqui.</div>
+      <img id="igPreviewImg" style="display:none;max-width:100%;border-radius:12px;border:1.5px solid var(--line)">
+     </div>
+    </div>
+   </div>
   </section>
 
   <!-- ===================== MANUTENÇÕES ===================== -->
@@ -294,8 +316,12 @@ async function carregarFin(){const {data,error}=await sb.from('financeiro').sele
   ab.forEach(function(r){const d=document.createElement('div');d.className='item';const m=[];if(r.cliente_fornecedor)m.push(esc(r.cliente_fornecedor));if(r.data_prevista)m.push('Prev.: '+dBR(r.data_prevista));
     d.innerHTML='<div class="t">'+brl(r.valor)+' — '+esc(r.descricao||'')+' <span class="badge ab">em aberto</span></div><div class="sub">'+m.join(' · ')+'</div><div class="act"><input class="rv" type="number" step="0.01" placeholder="valor recebido (opc.)"><button class="btn ok sm br">✓ Recebido</button></div>';
     d.querySelector('.br').onclick=function(){this.disabled=true;receber(r,d.querySelector('.rv').value);};$('listaAberto').appendChild(d);});
-  const ult=data.slice(0,15);$('listaUltimos').innerHTML=ult.length?ult.map(function(r){const cor=r.tipo==='Entrada'?'var(--gd)':'#c0392b',sig=r.tipo==='Entrada'?'+':'−';
-    return '<div class="item" style="padding:8px 11px"><div class="t" style="display:flex;justify-content:space-between"><span>'+esc(r.descricao||r.cliente_fornecedor||r.tipo)+'</span><span style="color:'+cor+'">'+sig+' '+brl(r.valor)+'</span></div><div class="sub" style="margin:2px 0 0">'+esc(r.tipo)+' · '+esc(r.status||'')+'</div></div>';}).join(''):'<div class="hint">Nenhum lançamento ainda.</div>';}
+  const ult=data.slice(0,15);$('listaUltimos').innerHTML='';
+  if(!ult.length){$('listaUltimos').innerHTML='<div class="hint">Nenhum lançamento ainda.</div>';}
+  ult.forEach(function(r){const cor=r.tipo==='Entrada'?'var(--gd)':'#c0392b',sig=r.tipo==='Entrada'?'+':'−';
+    const d=document.createElement('div');d.className='item';d.style.padding='8px 11px';
+    d.innerHTML='<div class="t" style="display:flex;justify-content:space-between;align-items:center"><span>'+esc(r.descricao||r.cliente_fornecedor||r.tipo)+'</span><span style="color:'+cor+'">'+sig+' '+brl(r.valor)+'</span></div><div class="sub" style="margin:2px 0 0;display:flex;justify-content:space-between;align-items:center"><span>'+esc(r.tipo)+' · '+esc(r.status||'')+'</span><button class="btn ghost sm bdelf" style="color:#c0392b;padding:2px 7px">🗑</button></div>';
+    d.querySelector('.bdelf').onclick=function(){excluirFin(r);};$('listaUltimos').appendChild(d);});}
 $('btnRefresh').onclick=carregarFin;
 
 /* ==================== ORÇAMENTO ==================== */
@@ -304,18 +330,32 @@ $('btnOrc').onclick=async function(){const st=$('stOrc'),b=this;const nome=$('o_
   const data=$('o_data').value||hojeISO(),ma=mesAno(data);
   const inv=($('o_qinv').value||'1')+'x '+$('o_minv').value.trim();const mod=($('o_qmod').value||'')+'x '+$('o_mmod').value.trim();
   stMsg(st,'wait','Salvando…');b.disabled=true;
-  const {data:ins,error}=await sb.from('orcamentos').insert({data:data,nome:nome,contato:$('o_contato').value.trim(),cidade:$('o_cidade').value.trim(),telhado:$('o_telhado').value,potencia:$('o_pot').value.trim(),valor_material:parseFloat($('o_vmat').value)||null,valor_final:vfin,inversor:inv,modulos:mod,mes:ma.mes,ano:ma.ano}).select();
-  if(error){stMsg(st,'err','Erro: '+error.message);b.disabled=false;return;}
-  const numero=ins&&ins[0]&&ins[0].numero;
-  try{await sb.from('marketing').upsert({numero_orcamento:numero,nome:nome,cidade:$('o_cidade').value.trim(),valor:vfin,potencia:$('o_pot').value.trim(),inversor:inv,modulos:mod,contato:$('o_contato').value.trim(),etapa:'Lead frio'},{onConflict:'numero_orcamento'});}catch(e){}
-  stMsg(st,'ok','✓ Orçamento salvo (nº '+numero+') e adicionado ao funil!');['o_nome','o_contato','o_cidade','o_pot','o_qmod','o_mmod','o_minv','o_vmat','o_vfin'].forEach(function(id){$(id).value='';});carregarOrc();b.disabled=false;};
+  const rec={data:data,nome:nome,contato:$('o_contato').value.trim(),cidade:$('o_cidade').value.trim(),telhado:$('o_telhado').value,potencia:$('o_pot').value.trim(),valor_material:parseFloat($('o_vmat').value)||null,valor_final:vfin,inversor:inv,modulos:mod,mes:ma.mes,ano:ma.ano};
+  const editid=($('o_editid')&&$('o_editid').value)||'';
+  let numero;
+  if(editid){
+    const {error}=await sb.from('orcamentos').update(rec).eq('numero',editid);
+    if(error){stMsg(st,'err','Erro: '+error.message);b.disabled=false;return;}
+    numero=+editid;
+  }else{
+    const {data:ins,error}=await sb.from('orcamentos').insert(rec).select();
+    if(error){stMsg(st,'err','Erro: '+error.message);b.disabled=false;return;}
+    numero=ins&&ins[0]&&ins[0].numero;
+  }
+  try{await sb.from('marketing').upsert({numero_orcamento:numero,nome:nome,cidade:$('o_cidade').value.trim(),valor:vfin,potencia:$('o_pot').value.trim(),inversor:inv,modulos:mod,contato:$('o_contato').value.trim()},{onConflict:'numero_orcamento'});}catch(e){}
+  stMsg(st,'ok',editid?('✓ Orçamento #'+numero+' atualizado!'):('✓ Orçamento salvo (nº '+numero+') e adicionado ao funil!'));
+  if($('o_editid'))$('o_editid').value='';
+  ['o_nome','o_contato','o_cidade','o_pot','o_qmod','o_mmod','o_minv','o_vmat','o_vfin'].forEach(function(id){$(id).value='';});carregarOrc();b.disabled=false;};
 async function carregarOrc(){const {data,error}=await sb.from('orcamentos').select('*').order('numero',{ascending:false}).limit(80);
   if(error){$('listaOrc').innerHTML='<div class="st show err">Erro: '+error.message+'</div>';return;}
   const box=$('listaOrc');box.innerHTML='';
   if(!data.length){box.innerHTML='<div class="hint">Nenhum orçamento ainda.</div>';return;}
   data.forEach(function(o){const d=document.createElement('div');d.className='item';d.style.padding='9px 11px';
-    d.innerHTML='<div class="t">#'+o.numero+' · '+esc(o.nome)+'</div><div class="sub">'+esc(o.cidade||'')+(o.potencia?' · '+esc(o.potencia)+' kWp':'')+' · '+brl(o.valor_final)+'</div><div class="act" style="margin-top:6px"><button class="btn ghost sm bprop">📄 Proposta PDF</button></div>';
+    d.innerHTML='<div class="t">#'+o.numero+' · '+esc(o.nome)+'</div><div class="sub">'+esc(o.cidade||'')+(o.potencia?' · '+esc(o.potencia)+' kWp':'')+' · '+brl(o.valor_final)+'</div><div class="act" style="margin-top:6px;flex-wrap:wrap;gap:5px"><button class="btn ghost sm bprop">📄 Proposta</button><button class="btn ghost sm binsta">📸 Post</button><button class="btn ghost sm bedit">✏️ Editar</button><button class="btn ghost sm bdel" style="color:#c0392b">🗑</button></div>';
     d.querySelector('.bprop').onclick=function(){propostaFromOrc(o);};
+    d.querySelector('.binsta').onclick=function(){abrirInstagram(o);};
+    d.querySelector('.bedit').onclick=function(){editarOrc(o);};
+    d.querySelector('.bdel').onclick=function(){excluirOrc(o);};
     box.appendChild(d);});}
 $('btnOrcRefresh').onclick=carregarOrc;
 
@@ -328,12 +368,14 @@ async function carregarObras(){const {data,error}=await sb.from('obras').select(
   if(error){$('listaObras').innerHTML='<div class="st show err">Erro: '+error.message+'</div>';return;}
   if(!data.length){$('listaObras').innerHTML='<div class="hint">Nenhuma obra. Crie uma acima ou pela geração de contrato.</div>';return;}
   $('listaObras').innerHTML='';data.forEach(function(o){let f=0;for(let i=1;i<=8;i++)if(o['etapa'+i])f++;const done=f===8;
-    const d=document.createElement('div');d.className='listItem';d.innerHTML='<div><div class="nm">'+esc(o.cliente)+'</div><div class="pj">'+(o.projeto?esc(o.projeto):'—')+'</div></div><div class="pill'+(done?' done':'')+'">'+f+'/8</div>';
+    const dias=diasSem(o.atualizado_em||o.data_contrato);const parada=(!done&&dias!=null&&dias>5);
+    const d=document.createElement('div');d.className='listItem'+(parada?' parada':'');
+    d.innerHTML='<div><div class="nm">'+(parada?'⚠️ ':'')+esc(o.cliente)+'</div><div class="pj">'+(o.projeto?esc(o.projeto):'—')+(parada?' · <span style="color:#c0392b;font-weight:700">'+dias+' dias sem atualizar</span>':'')+'</div></div><div class="pill'+(done?' done':'')+'">'+f+'/8</div>';
     d.onclick=function(){document.querySelectorAll('#listaObras .listItem').forEach(function(x){x.classList.remove('sel');});d.classList.add('sel');abrirObra(o);};$('listaObras').appendChild(d);});}
 function abrirObra(o){obraSel=o;current=o;let h='<h2 style="margin-top:0">🔧 '+esc(o.cliente)+'</h2><div class="hint">'+(o.projeto?'Projeto '+esc(o.projeto)+' · ':'')+(o.valor?brl(o.valor):'')+'</div>';
   h+='<label style="font-weight:700;font-size:12px;color:#5a6a60;margin-top:8px;display:block">CHECKLIST</label><div id="obraSteps">';
-  for(let i=0;i<8;i++){const val=o['etapa'+(i+1)]||'';h+='<div class="step'+(val?' ok':'')+'"><div class="num">'+(i+1)+'</div><div class="snm">'+esc(OBRA_ETAPAS[i])+'</div><input type="date" data-s="'+i+'" value="'+(val?String(val).slice(0,10):'')+'"></div>';}
-  h+='</div><div class="actions" style="margin-top:12px"><button class="btn primary" id="btnObraSalvar">💾 Salvar checklist</button></div><div id="stObra" class="st"></div>';
+  for(let i=0;i<8;i++){const val=o['etapa'+(i+1)]||'';h+='<div class="step'+(val?' ok':'')+'"><div class="num">'+(i+1)+'</div><div class="snm">'+esc(OBRA_ETAPAS[i])+'</div><input type="date" data-s="'+i+'" value="'+(val?String(val).slice(0,10):'')+'"><button class="btn ghost sm waStep" data-wa="'+i+'" title="Avisar cliente no WhatsApp" style="padding:3px 7px;margin-left:5px">📲</button></div>';}
+  h+='</div><div class="actions" style="margin-top:12px"><button class="btn primary" id="btnObraSalvar">💾 Salvar checklist</button><button class="btn ghost" id="btnExcluirObra" style="color:#c0392b">🗑 Excluir obra</button></div><div id="stObra" class="st"></div>';
   h+='<div style="margin-top:14px;border-top:1.5px solid var(--line);padding-top:10px"><label style="font-weight:700;font-size:12px;color:#5a6a60;display:block;margin-bottom:6px">💰 CUSTOS E RENTABILIDADE (ETAPA 5)</label>';
   h+='<div id="matRows"></div><div class="actions" style="margin:6px 0"><button class="btn ghost sm" id="btnAddMat">➕ Adicionar item</button></div>';
   h+='<div id="matResumo" class="hint" style="margin:4px 0"></div>';
@@ -350,7 +392,9 @@ function abrirObra(o){obraSel=o;current=o;let h='<h2 style="margin-top:0">🔧 '
   h+='<div class="actions"><button class="btn primary sm" id="btnContrato">📄 Gerar Contrato PDF</button></div><div id="ctStatus" class="st"></div></div></details>';
   $('obraDet').innerHTML=h;aplicarGate();
   document.querySelectorAll('#obraSteps input').forEach(function(inp){inp.addEventListener('change',aplicarGate);});
-  $('btnObraSalvar').onclick=salvarObra;initCustos(o);initContrato(o);}
+  $('btnObraSalvar').onclick=salvarObra;initCustos(o);initContrato(o);
+  document.querySelectorAll('#obraSteps .waStep').forEach(function(btn){btn.onclick=function(){avisarWhats(o,+btn.dataset.wa);};});
+  $('btnExcluirObra').onclick=excluirObraTudo;}
 function coletaEtapas(){const a=['','','','','','','',''];document.querySelectorAll('#obraSteps input').forEach(function(inp){a[+inp.dataset.s]=inp.value;});return a;}
 function aplicarGate(){const et=coletaEtapas();document.querySelectorAll('#obraSteps input').forEach(function(inp){const i=+inp.dataset.s;inp.disabled=(i>0&&!et[i-1]);inp.closest('.step').classList.toggle('ok',!!inp.value);});}
 async function salvarObra(){const st=$('stObra');const et=coletaEtapas();for(let j=1;j<8;j++){if(et[j]&&!et[j-1]){stMsg(st,'err','Conclua "'+OBRA_ETAPAS[j-1]+'" antes de "'+OBRA_ETAPAS[j]+'".');return;}}
@@ -369,8 +413,9 @@ async function carregarPos(){const {data,error}=await sb.from('posvenda').select
   if(!data.length){$('listaPos').innerHTML='<div class="hint">Nenhum chamado.</div>';return;}
   $('listaPos').innerHTML='';data.forEach(function(c){const concl=c.status==='Concluído';const d=document.createElement('div');d.className='item';
     const m=[];if(c.data)m.push('Data: '+dBR(c.data));if(c.prazo)m.push('Prazo: '+dBR(c.prazo));if(c.atendente)m.push('Atend.: '+esc(c.atendente));
-    d.innerHTML='<div class="t">'+esc(c.cliente)+' <span class="badge '+(concl?'ab':'ap')+'">'+(concl?'Concluído':'Aberto')+'</span></div><div class="sub">'+esc(c.servico||'')+'</div><div class="sub">'+m.join(' · ')+'</div><div class="act"><button class="btn ghost sm bt">'+(concl?'↺ Reabrir':'✓ Concluir')+'</button></div>';
-    d.querySelector('.bt').onclick=async function(){await sb.from('posvenda').update({status:concl?'Aberto':'Concluído'}).eq('id',c.id);carregarPos();};$('listaPos').appendChild(d);});}
+    d.innerHTML='<div class="t">'+esc(c.cliente)+' <span class="badge '+(concl?'ab':'ap')+'">'+(concl?'Concluído':'Aberto')+'</span></div><div class="sub">'+esc(c.servico||'')+'</div><div class="sub">'+m.join(' · ')+'</div><div class="act"><button class="btn ghost sm bt">'+(concl?'↺ Reabrir':'✓ Concluir')+'</button><button class="btn ghost sm bx" style="color:#c0392b">🗑 Excluir</button></div>';
+    d.querySelector('.bt').onclick=async function(){await sb.from('posvenda').update({status:concl?'Aberto':'Concluído'}).eq('id',c.id);carregarPos();};
+    d.querySelector('.bx').onclick=async function(){if(!confirm('Excluir o chamado de '+c.cliente+'?'))return;await sb.from('posvenda').delete().eq('id',c.id);carregarPos();};$('listaPos').appendChild(d);});}
 $('btnPosRefresh').onclick=carregarPos;
 
 /* ==================== MARKETING ==================== */
@@ -401,12 +446,13 @@ async function carregarManut(){const {data,error}=await sb.from('manutencoes').s
   if(error){$('listaManut').innerHTML='<div class="st show err">Erro: '+error.message+'</div>';return;}
   if(!data.length){$('listaManut').innerHTML='<div class="hint">Nenhuma manutenção.</div>';return;}
   $('listaManut').innerHTML='';data.forEach(function(m){const concl=m.status==='Concluído';const lanc=String(m.lancado_financeiro||'').toUpperCase().indexOf('SIM')===0;
-    const d=document.createElement('div');d.className='item';d.innerHTML='<div class="t">'+esc(m.cliente)+' — <b>'+brl(m.total)+'</b> <span class="badge '+(concl?'ab':'ap')+'">'+(concl?'Concluída':'Aberta')+'</span></div><div class="sub">'+(m.cidade?esc(m.cidade)+' · ':'')+m.qtd_modulos+' módulo(s)'+(lanc?' · ✓ no financeiro':'')+'</div><div class="act"><button class="btn ghost sm bt">'+(concl?'↺ Reabrir':'✓ Concluir e lançar no financeiro')+'</button></div><div class="st st2"></div>';
+    const d=document.createElement('div');d.className='item';d.innerHTML='<div class="t">'+esc(m.cliente)+' — <b>'+brl(m.total)+'</b> <span class="badge '+(concl?'ab':'ap')+'">'+(concl?'Concluída':'Aberta')+'</span></div><div class="sub">'+(m.cidade?esc(m.cidade)+' · ':'')+m.qtd_modulos+' módulo(s)'+(lanc?' · ✓ no financeiro':'')+'</div><div class="act"><button class="btn ghost sm bt">'+(concl?'↺ Reabrir':'✓ Concluir e lançar no financeiro')+'</button><button class="btn ghost sm bxm" style="color:#c0392b">🗑 Excluir</button></div><div class="st st2"></div>';
     d.querySelector('.bt').onclick=async function(){const stt=d.querySelector('.st2');const novo=concl?'Aberto':'Concluído';
       if(novo==='Concluído'&&!lanc){if(!confirm('Concluir e lançar '+brl(m.total)+' no financeiro?'))return;}
       await sb.from('manutencoes').update({status:novo,concluida_em:novo==='Concluído'?hojeISO():null}).eq('id',m.id);
       if(novo==='Concluído'&&!lanc){const ma=mesAno(hojeISO());await sb.from('financeiro').insert({tipo:'Entrada',status:'Recebido',data_prevista:hojeISO(),data_realizada:hojeISO(),cliente_fornecedor:m.cliente,descricao:'Manutenção fotovoltaica',valor:m.total,origem:'Manual',mes:ma.mes,ano:ma.ano});await sb.from('manutencoes').update({lancado_financeiro:'Sim'}).eq('id',m.id);stMsg(stt,'ok','✓ Lançado no financeiro!');}
-      carregarManut();};$('listaManut').appendChild(d);});}
+      carregarManut();};
+    d.querySelector('.bxm').onclick=async function(){if(!confirm('Excluir a manutenção de '+m.cliente+'?'))return;await sb.from('manutencoes').delete().eq('id',m.id);carregarManut();};$('listaManut').appendChild(d);});}
 $('btnManutRefresh').onclick=carregarManut;
 
 /* ==================== EQUIPES ==================== */
@@ -1041,5 +1087,158 @@ function initContrato(o){
   if($('ct_data')) $('ct_data').value=(o.data_contrato?String(o.data_contrato).slice(0,10):hojeISO());
   $('btnContrato').onclick=gerarContratoObra;
 }
+ function xml(s){return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+ function fmtEco(v){ v=String(v||'').trim(); if(!v) return ''; return /^r\$/i.test(v) ? v.replace(/^r\$\s*/i,'R$ ') : 'R$ '+v; }
+
+ function coins(){ return '<ellipse cx="0" cy="-14" rx="30" ry="12" stroke-width="5"/><path d="M-30,-14 v18 a30,12 0 0 0 60,0 v-18" stroke-width="5"/><path d="M-30,2 v14 a30,12 0 0 0 60,0 v-14" stroke-width="5"/>'; }
+ function pan$(){ return '<rect x="-34" y="-26" width="68" height="52" rx="5" stroke-width="5"/><line x1="-11" y1="-26" x2="-11" y2="26" stroke-width="4"/><line x1="11" y1="-26" x2="11" y2="26" stroke-width="4"/><line x1="-34" y1="0" x2="34" y2="0" stroke-width="4"/>'; }
+ function bolt(){ return '<polygon points="8,-32 -16,6 -1,6 -8,32 18,-8 3,-8" fill="#fff" stroke="none"/>'; }
+ function cIcon(x,y,h,ic){ return '<g transform="translate('+(x+58)+','+(y+h/2)+')" stroke="#fff" fill="none">'+ic+'</g>'; }
+ function box(x,y,w,h){ return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" rx="18" fill="url(#nv)"/>'; }
+
+ function buildSVG(){
+  var cidade=$('ig_cidade').value.trim()||'Vitória da Conquista - BA';
+  var eco=fmtEco($('ig_economia').value)||'R$ 0';
+  var pain=($('ig_paineis').value.trim()||'0');
+  var ger=($('ig_geracao').value.trim()||'0');
+  var bw=Math.min(1000, cidade.length*30+120), bx=(1080-bw)/2;
+  var foto = igFoto ? '<image href="'+igFoto+'" x="0" y="0" width="1080" height="1080" preserveAspectRatio="xMidYMid slice"/>' : '<rect width="1080" height="1080" fill="#c9d3da"/>';
+  var logo = ASSETS.logo ? '<image href="'+ASSETS.logo+'" x="70" y="928" width="212" height="143" preserveAspectRatio="xMidYMid meet"/>' : '';
+  return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1080" viewBox="0 0 1080 1080" font-family="Arial Black, Arial, sans-serif">'
+   +'<defs>'
+    +'<linearGradient id="ov" x1="0" y1="0" x2="0" y2="1"><stop offset="0.42" stop-color="#0b2e78" stop-opacity="0"/><stop offset="0.72" stop-color="#123a8f" stop-opacity="0.5"/><stop offset="1" stop-color="#1b46a8" stop-opacity="0.98"/></linearGradient>'
+    +'<linearGradient id="nv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b2e78"/><stop offset="1" stop-color="#0a2350"/></linearGradient>'
+   +'</defs>'
+   +foto
+   +'<rect x="0" y="460" width="1080" height="620" fill="url(#ov)"/>'
+   +'<rect x="'+bx+'" y="28" width="'+bw+'" height="92" rx="22" fill="url(#nv)" stroke="#4f79d6" stroke-width="2"/>'
+   +'<text x="540" y="90" fill="#fff" font-size="54" font-weight="900" text-anchor="middle">'+xml(cidade)+'</text>'
+   // card 1 economia
+   +box(648,730,404,108)+cIcon(648,730,108,coins())
+   +'<text x="770" y="790" fill="#fff" font-size="52" font-weight="900">'+xml(eco)+'</text>'
+   +'<text x="772" y="826" fill="#dbe6ff" font-size="26" font-weight="700">ECONOMIA ANUAL</text>'
+   // card 2 painéis
+   +box(648,850,404,92)+cIcon(648,850,92,pan$())
+   +'<text x="770" y="910" fill="#fff" font-size="46" font-weight="900">'+xml(pain)+' PAINÉIS</text>'
+   // card 3 geração
+   +box(648,954,404,118)+cIcon(648,954,118,bolt())
+   +'<text x="770" y="1012" fill="#fff" font-size="52" font-weight="900">'+xml(ger)+'</text>'
+   +'<text x="772" y="1050" fill="#dbe6ff" font-size="24" font-weight="700">kWh GERADOS POR MÊS</text>'
+   // selo +1 PROJETO CONCLUÍDO
+   +'<rect x="44" y="806" width="122" height="100" rx="16" fill="url(#nv)"/>'
+   +'<text x="105" y="874" fill="#fff" font-size="56" font-weight="900" text-anchor="middle">+1</text>'
+   +'<rect x="176" y="806" width="380" height="100" rx="16" fill="#f47a1c"/>'
+   +'<text x="202" y="850" fill="#fff" font-size="40" font-weight="900">PROJETO</text>'
+   +'<text x="202" y="894" fill="#fff" font-size="40" font-weight="900">CONCLUÍDO</text>'
+   +logo
+   +'</svg>';
+ }
+
+/* ================= NOVAS FUNÇÕES (WhatsApp, excluir/editar, alerta, Instagram) ================= */
+var WHATS='(77) 99975-0486';
+var igFoto=null, igLegIdx=0;
+
+function diasSem(d){ if(!d) return null; var s=String(d).slice(0,10); var t=new Date(s); if(isNaN(t.getTime())) return null; var ms=Date.now()-t.getTime(); return ms<0?0:Math.floor(ms/86400000); }
+function _copyTxt(t){ try{ navigator.clipboard.writeText(t); }catch(e){ var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(_){}ta.remove(); } }
+
+/* ---- WhatsApp por etapa da obra ---- */
+function _waNum(tel){ var d=String(tel||'').replace(/\D/g,''); if(!d) return ''; if(d.length<=11) d='55'+d; return d; }
+function avisarWhats(o,i){
+  var num=_waNum(o.telefone);
+  var etapa=OBRA_ETAPAS[i]||('etapa '+(i+1));
+  var msg='Olá! Aqui é da União Solar. ☀️ A instalação da sua usina solar avançou para a etapa: '+etapa+'. Qualquer dúvida, estamos à disposição!';
+  window.open('https://wa.me/'+num+'?text='+encodeURIComponent(msg),'_blank');
+}
+
+/* ---- Excluir / editar ---- */
+async function excluirObraTudo(){
+  if(!obraSel) return;
+  if(!confirm('Excluir a obra de "'+obraSel.cliente+'"?\n\nIsso remove a obra e os lançamentos de CONTRATO desse cliente no financeiro. Não dá pra desfazer.')) return;
+  try{
+    await sb.from('obras').delete().eq('id',obraSel.id);
+    await sb.from('financeiro').delete().eq('cliente_fornecedor',obraSel.cliente).eq('origem','Contrato');
+    $('obraDet').innerHTML='<div class="hint">Obra excluída.</div>';
+    carregarObras(); if(typeof carregarFin==='function') carregarFin();
+  }catch(e){ alert('Erro ao excluir: '+(e&&e.message||e)); }
+}
+async function excluirOrc(o){
+  if(!confirm('Excluir o orçamento #'+o.numero+' de "'+o.nome+'"? Remove também do funil.')) return;
+  try{
+    await sb.from('marketing').delete().eq('numero_orcamento',o.numero);
+    await sb.from('orcamentos').delete().eq('numero',o.numero);
+    carregarOrc();
+  }catch(e){ alert('Erro: '+(e&&e.message||e)); }
+}
+function editarOrc(o){
+  $('o_nome').value=o.nome||''; $('o_contato').value=o.contato||''; $('o_cidade').value=o.cidade||'';
+  if(o.telhado){ try{$('o_telhado').value=o.telhado;}catch(e){} }
+  $('o_pot').value=(o.potencia!=null?o.potencia:'');
+  $('o_qmod').value=_qtdFrom(o.modulos)||''; $('o_mmod').value=String(o.modulos||'').replace(/^\s*\d+\s*x\s*/i,'').trim();
+  $('o_qinv').value=_qtdFrom(o.inversor)||'1'; $('o_minv').value=String(o.inversor||'').replace(/^\s*\d+\s*x\s*/i,'').trim();
+  $('o_vmat').value=(o.valor_material!=null?o.valor_material:''); $('o_vfin').value=(o.valor_final!=null?o.valor_final:'');
+  if(o.data) $('o_data').value=String(o.data).slice(0,10);
+  $('o_editid').value=o.numero;
+  stMsg($('stOrc'),'wait','Editando o orçamento #'+o.numero+' — altere e clique em Salvar.');
+  window.scrollTo(0,0);
+}
+async function excluirFin(r){
+  if(!confirm('Excluir este lançamento? ('+brl(r.valor)+' — '+(r.descricao||r.cliente_fornecedor||r.tipo)+')')) return;
+  try{ await sb.from('financeiro').delete().eq('id',r.id); carregarFin(); }
+  catch(e){ alert('Erro: '+(e&&e.message||e)); }
+}
+
+/* ---- Instagram: gerar arte a partir de um orçamento ---- */
+function abrirInstagram(o){
+  var nav=document.querySelector('.navitem[data-view="marketing"]'); if(nav) nav.click();
+  var pot=_numFrom(o.potencia)||0;
+  $('ig_cidade').value=o.cidade||'';
+  $('ig_paineis').value=_qtdFrom(o.modulos)||'';
+  $('ig_placaw').value=_wpFrom(o.modulos)||'';
+  $('ig_kwp').value=(o.potencia!=null?o.potencia:'');
+  $('ig_geracao').value=pot?Math.round(pot*M_GER_KWP):'';
+  try{
+    if(pot>0){ var inp={potencia_kwp:pot,consumo_kwh:Math.round(pot*M_GER_KWP),valor:(+o.valor_final)||0,ligacao:'trifasico',ano_base:2026,qtd_modulos:_qtdFrom(o.modulos)||1};
+      var r=calcularFin(inp); $('ig_economia').value=Math.round(r.anos[0].economia); }
+  }catch(e){}
+  var card=$('igCard'); if(card) card.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function rasterizeIG(svg, cb){
+  var img=new Image();
+  img.onload=function(){ var cv=document.createElement('canvas'); cv.width=1080; cv.height=1080; cv.getContext('2d').drawImage(img,0,0,1080,1080); try{ cb(cv.toDataURL('image/png')); }catch(e){ cb(null); } };
+  img.onerror=function(){ cb(null); };
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+}
+function gerarArteIG(){
+  var st=$('igStatus');
+  if(!igFoto){ stMsg(st,'err','Envie a foto da obra primeiro.'); return; }
+  stMsg(st,'wait','Gerando a arte…');
+  rasterizeIG(buildSVG(), function(png){
+    if(!png){ stMsg(st,'err','Não consegui gerar. Tente outra foto.'); return; }
+    var im=$('igPreviewImg'); im.src=png; im.style.display='block'; $('igPlaceholder').style.display='none';
+    var a=$('igBaixar'); a.href=png; a.style.display='inline-block';
+    stMsg(st,'ok','✓ Arte gerada! Clique em ⬇ Baixar imagem.');
+  });
+}
+function gerarLegendaIG(){
+  var cidade=$('ig_cidade').value.trim()||'Vitória da Conquista - BA';
+  var pain=$('ig_paineis').value.trim(), kwp=$('ig_kwp').value.trim(),
+      eco=fmtEco($('ig_economia').value), ger=$('ig_geracao').value.trim(), placaw=$('ig_placaw').value.trim();
+  var ab=['☀️ Mais uma usina solar instalada em '+cidade+'!','💚 Projeto concluído em '+cidade+'!','🔋 Energia solar entregue em '+cidade+'!','✅ Obra finalizada em '+cidade+'!'];
+  var cta=['📲 Peça seu orçamento gratuito no WhatsApp '+WHATS+'.','📲 Chame no WhatsApp '+WHATS+' e faça sua simulação sem compromisso.','📲 Fale com a União Solar no WhatsApp '+WHATS+' e comece a economizar ainda este mês.','📲 Garanta a sua usina solar — WhatsApp '+WHATS+'.'];
+  var i=igLegIdx%4, dados=[];
+  if(pain) dados.push(pain+' painéis'+(placaw?(' de '+placaw+'W'):''));
+  if(kwp) dados.push(kwp+' kWp');
+  if(ger) dados.push(ger+' kWh por mês');
+  var l1=ab[i]; if(dados.length) l1+=' '+dados.join(', ')+'.';
+  var l2=eco ? ('Economia de '+eco+' por ano na conta de luz. Chega de pagar caro pra concessionária! ') : ('Comece a gerar sua própria energia e pare de pagar caro pra concessionária! ');
+  return l1+'\n\n'+l2+'\n\n'+cta[i];
+}
+(function(){
+  var f=$('ig_foto'); if(f) f.onchange=function(){ var file=this.files&&this.files[0]; if(!file) return; var rd=new FileReader(); rd.onload=function(){ igFoto=rd.result; }; rd.readAsDataURL(file); };
+  var g=$('btnIgGerar'); if(g) g.onclick=gerarArteIG;
+  var bl=$('btnIgLegenda'); if(bl) bl.onclick=function(){ $('ig_legenda').value=gerarLegendaIG(); };
+  var bv=$('btnIgVariar'); if(bv) bv.onclick=function(){ igLegIdx++; $('ig_legenda').value=gerarLegendaIG(); };
+  var bc=$('btnIgCopiar'); if(bc) bc.onclick=function(){ _copyTxt($('ig_legenda').value); };
+})();
 </script>
 </body></html>
