@@ -1714,16 +1714,16 @@ function abrirCliente(c){
   h+='<div class="frow two"><div><label>CPF/CNPJ</label><input id="dg_cpf" value="'+esc(c.cpf||'')+'"></div><div><label>Endereço</label><input id="dg_end" value="'+esc(c.endereco||'')+'"></div></div>';
   h+='<div class="actions"><button class="btn primary sm" id="btnDgSalvar">💾 Salvar dados gerais</button></div></div>';
   // 2. Primeira etapa
-  h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">2 · Primeira etapa</h3>';
+  h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">2 · Primeira etapa <button class="btn ok sm" data-zip="etapa" style="float:right;font-weight:600">📦 Baixar tudo (ZIP)</button></h3>';
   h+='<div class="frow"><label>📍 Link da localização do cliente (Google Maps)</label><div style="display:flex;gap:6px"><input id="dg_local" value="'+esc(c.localizacao||'')+'" placeholder="Cole aqui o link do Maps" style="flex:1"><button class="btn ghost sm" id="btnLocalSalvar">💾</button>'+(c.localizacao?'<a class="btn ghost sm" href="'+esc(c.localizacao)+'" target="_blank">Abrir</a>':'')+'</div></div>';
   _CAT_ETAPA.forEach(function(x){h+=_slotHTML(c,x[0],x[1]);});
   h+='</div>';
   // 3. Projeto
-  h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">3 · Projeto</h3>';
+  h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">3 · Projeto <button class="btn ok sm" data-zip="projeto" style="float:right;font-weight:600">📦 Baixar tudo (ZIP)</button></h3>';
   _CAT_PROJ.forEach(function(x){h+=_slotHTML(c,x[0],x[1]);});
   h+='</div>';
   // 4. Vistoria
-  h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">4 · Vistoria</h3>';
+  h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:12px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">4 · Vistoria <button class="btn ok sm" data-zip="vistoria" style="float:right;font-weight:600">📦 Baixar tudo (ZIP)</button></h3>';
   _CAT_VIST.forEach(function(x){h+=_slotHTML(c,x[0],x[1]);});
   h+='</div><div id="dadosStatus" class="st"></div>';
   $('dadosDet').innerHTML=h;
@@ -1731,6 +1731,7 @@ function abrirCliente(c){
   $('btnLocalSalvar').onclick=function(){salvarLocalizacao(c);};
   document.querySelectorAll('#dadosDet .slotinput').forEach(function(inp){inp.onchange=function(){var f=this.files&&this.files[0];if(f)uploadArquivo(c,this.dataset.cat,f);};});
   document.querySelectorAll('#dadosDet .fdel').forEach(function(btn){btn.onclick=function(){delArquivo(c,btn.dataset.cat,+btn.dataset.idx);};});
+  document.querySelectorAll('#dadosDet [data-zip]').forEach(function(btn){btn.onclick=function(){var z=btn.dataset.zip;if(z==='etapa')baixarEtapaZip(c,_CAT_ETAPA,'Primeira etapa');else if(z==='projeto')baixarEtapaZip(c,_CAT_PROJ,'Projeto');else if(z==='vistoria')baixarEtapaZip(c,_CAT_VIST,'Vistoria');};});
 }
 async function salvarDadosGerais(c){
   var st=$('dadosStatus'); stMsg(st,'wait','Salvando…');
@@ -1791,6 +1792,49 @@ async function _ensureClienteDados(nome,num,valor,cpf,endereco,contato,projeto,p
       }
     }
   }catch(e){}
+}
+
+/* ================= Baixar etapa como ZIP ================= */
+function _loadJSZip(cb){
+  if(window.JSZip){ cb(true); return; }
+  var urls=['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js','https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'];
+  var i=0;(function next(){ if(i>=urls.length){ cb(false); return; }
+    var s=document.createElement('script'); s.src=urls[i++];
+    s.onload=function(){ var t=0;(function poll(){ if(window.JSZip){cb(true);return;} if(t++>80){next();return;} setTimeout(poll,50); })(); };
+    s.onerror=next; document.body.appendChild(s);
+  })();
+}
+function _downloadBlob(blob,name){ var a=document.createElement('a'); var u=URL.createObjectURL(blob); a.href=u; a.download=name; document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(u); a.remove(); },1500); }
+function _zipName(nome,url,i){
+  nome=String(nome||'arquivo').replace(/[\/\\:*?"<>|]+/g,'_');
+  if(!/\.[a-z0-9]{2,5}$/i.test(nome)){ var m=String(url||'').match(/\.([a-z0-9]{2,5})(\?|$)/i); nome+=(m?('.'+m[1]):'.dat'); }
+  return (i+1)+'_'+nome;
+}
+function baixarEtapaZip(cli,cats,nomeEtapa){
+  var st=$('dadosStatus');
+  var files=[];
+  cats.forEach(function(x){ var arr=(cli.arquivos&&cli.arquivos[x[0]])||[]; arr.forEach(function(f){ files.push({cat:x[1],f:f}); }); });
+  if(!files.length){ stMsg(st,'err','Nenhum arquivo em "'+nomeEtapa+'" para baixar ainda.'); return; }
+  stMsg(st,'wait','Preparando o ZIP de "'+nomeEtapa+'" ('+files.length+' arquivo(s))…');
+  _loadJSZip(function(ok){
+    if(!ok){ stMsg(st,'err','Não consegui carregar o compactador (sem internet?).'); return; }
+    (async function(){
+      try{
+        var zip=new JSZip(); var nadd=0;
+        for(var i=0;i<files.length;i++){ var it=files[i];
+          try{
+            var resp=await fetch(it.f.url); var blob=await resp.blob();
+            var folder=String(it.cat).replace(/[\/\\:*?"<>|]+/g,'-');
+            zip.file(folder+'/'+_zipName(it.f.nome,it.f.url,i), blob); nadd++;
+          }catch(e){}
+        }
+        if(!nadd){ stMsg(st,'err','Não consegui baixar os arquivos (verifique a conexão).'); return; }
+        var out=await zip.generateAsync({type:'blob'});
+        _downloadBlob(out, (cli.cliente||'cliente')+' - '+nomeEtapa+'.zip');
+        stMsg(st,'ok','✓ ZIP de "'+nomeEtapa+'" gerado ('+nadd+' arquivo(s)).');
+      }catch(e){ stMsg(st,'err','Erro ao gerar o ZIP: '+(e&&e.message||e)); }
+    })();
+  });
 }
 </script>
 </body></html>
