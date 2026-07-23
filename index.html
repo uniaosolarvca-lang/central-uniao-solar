@@ -142,7 +142,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
      <div class="frow"><label>Data</label><input id="o_data" type="date"></div>
      <input type="hidden" id="o_editid">
      <div class="actions"><button class="btn primary" id="btnOrc">✓ Salvar orçamento</button></div><div id="stOrc" class="st"></div></div>
-    <div class="card"><h2>📋 Orçamentos <span style="float:right"><button class="btn ghost sm" id="btnOrcMin">🔽 Minimizar</button> <button class="btn ghost sm" id="btnOrcRefresh">↻</button></span></h2>
+    <div class="card"><h2>📋 Orçamentos <span style="float:right"><button class="btn ok sm" id="btnOrcRel">📊 Relatório mensal</button> <button class="btn ghost sm" id="btnOrcMin">🔽 Minimizar</button> <button class="btn ghost sm" id="btnOrcRefresh">↻</button></span></h2>
      <input id="orcBusca" placeholder="🔎 Pesquisar orçamento pelo nome…" style="width:100%;box-sizing:border-box;margin:2px 0 8px;padding:8px 11px;border:1.5px solid var(--line);border-radius:9px;font-size:13px">
      <div id="listaOrc"><div class="hint">carregando…</div></div></div>
    </div>
@@ -183,9 +183,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
      <div class="frow"><label>Forma de pagamento (uma condição por linha)</label><textarea id="ct2_pag" style="min-height:56px" placeholder="Ex.: R$ 10.700,00, à vista, via financiamento, direto à contratada."></textarea></div>
      <div class="frow"><label>Equipamentos (um por linha)</label><textarea id="ct2_equip" style="min-height:80px" placeholder="8 MODULO BIFACIAL 620W...&#10;1 INVERSOR 6KW SOFAR..."></textarea></div>
      <div class="frow"><label>Data do contrato</label><input id="ct2_data" type="date"></div>
-     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0 6px;cursor:pointer"><input type="checkbox" id="ct2_proc" style="width:auto" checked> Gerar também a <b>procuração</b> junto do contrato</label>
-     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:0 0 10px;cursor:pointer"><input type="checkbox" id="ct2_reg" style="width:auto"> Registrar no sistema (cria a obra, lança no financeiro e move o cliente para "Novo Cliente" no funil)</label>
-     <div class="actions"><button class="btn primary" id="btnCt2Gerar">📄 Gerar Contrato PDF</button></div><div id="ct2Status" class="st"></div></div>
+     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0 10px;cursor:pointer"><input type="checkbox" id="ct2_reg" style="width:auto"> Registrar no sistema (cria a obra, lança no financeiro e move o cliente para "Novo Cliente" no funil)</label>
+     <div class="actions"><button class="btn primary" id="btnCt2Gerar">📄 Gerar Contrato PDF</button><button class="btn ok" id="btnCt2Proc">📄 Gerar Procuração PDF</button></div><div id="ct2Status" class="st"></div></div>
     <div class="card"><h2>📋 Contratos / obras <button class="btn ghost sm" id="btnCt2Refresh" style="float:right">↻</button></h2><div id="listaContratos"><div class="hint">carregando…</div></div></div>
    </div>
   </section>
@@ -388,8 +387,8 @@ function renderOrc(){const box=$('listaOrc');if(!box)return;
     d.querySelector('.bedit').onclick=function(){editarOrc(o);};
     d.querySelector('.bdel').onclick=function(){excluirOrc(o);};
     box.appendChild(d);});}
-(function(){var q=$('orcBusca');if(q)q.oninput=renderOrc;
-  var mn=$('btnOrcMin');if(mn)mn.onclick=function(){var b=$('listaOrc'),s=$('orcBusca');var hide=b.style.display!=='none';b.style.display=hide?'none':'';if(s)s.style.display=hide?'none':'';this.textContent=hide?'🔼 Expandir':'🔽 Minimizar';};})();
+(function(){var q=$('orcBusca');if(q)q.oninput=function(){var b=$('listaOrc');if(this.value.trim()&&b)b.style.display='';var mn=$('btnOrcMin');if(mn)mn.textContent='🔽 Minimizar';renderOrc();};
+  var mn=$('btnOrcMin');if(mn)mn.onclick=function(){var b=$('listaOrc');var hide=b.style.display!=='none';b.style.display=hide?'none':'';this.textContent=hide?'🔼 Expandir':'🔽 Minimizar';};})();
 $('btnOrcRefresh').onclick=carregarOrc;
 
 /* ==================== OBRAS ==================== */
@@ -466,8 +465,9 @@ async function carregarMkt(){const board=$('mktBoard');board.innerHTML='<div cla
     col.querySelector('h3').onclick=function(){_mktCollapsed[etapa]=!_mktCollapsed[etapa];const cc=_mktCollapsed[etapa];body.style.display=cc?'none':'';this.querySelector('.cr').textContent=cc?'▸':'▾';};
     grupos[etapa].forEach(function(l){const c=document.createElement('div');c.className='mktcard';c.style.borderLeftColor=MKT_CORES[etapa];
       const opts=MKT_ETAPAS.map(function(e){return '<option'+(e===etapa?' selected':'')+'>'+e+'</option>';}).join('');
-      c.innerHTML='<div style="font-weight:700">'+esc(l.nome)+' <span style="color:#aaa">#'+l.numero+'</span></div><div style="color:#6a7a70;font-size:11.5px;margin:2px 0 6px">'+esc(l.cidade||'')+(l.valor?' · '+brl(l.valor):'')+'</div><select class="et" style="padding:6px">'+opts+'</select>';
+      c.innerHTML='<div style="font-weight:700;display:flex;justify-content:space-between;align-items:center">'+esc(l.nome)+' <span style="color:#aaa;font-weight:400">#'+l.numero+'</span></div><div style="color:#6a7a70;font-size:11.5px;margin:2px 0 6px">'+esc(l.cidade||'')+(l.valor?' · '+brl(l.valor):'')+'</div><div style="display:flex;gap:6px;align-items:center"><select class="et" style="padding:6px;flex:1">'+opts+'</select><button class="btn ghost sm bdelmkt" title="Excluir orçamento" style="color:#c0392b;padding:4px 8px">🗑</button></div>';
       c.querySelector('.et').onchange=async function(){await sb.from('marketing').upsert({numero_orcamento:l.numero,nome:l.nome,cidade:l.cidade,valor:l.valor,potencia:l.potencia,inversor:l.inversor,modulos:l.modulos,contato:l.contato,etapa:this.value},{onConflict:'numero_orcamento'});carregarMkt();};
+      c.querySelector('.bdelmkt').onclick=function(){excluirDoFunil(l.numero,l.nome);};
       body.appendChild(c);});board.appendChild(col);});}
 $('btnMktRefresh').onclick=carregarMkt;
 
@@ -1417,7 +1417,6 @@ function gerarContratoTab(){
     rg:esc(($('ct2_rg').value||'').trim()||'—'), cpf:esc(($('ct2_cpf').value||'').trim()||'—'), endereco:esc(endereco), enderecoInst:esc(endereco),
     valorFmt:brl(valor), valorExtenso:extenso(valor), pagHtml:pagHtml, eqHtml:eqHtml, cidadeUF:'Vitória da Conquista - Bahia', dataExt:dataExt };
   var html=_contratoHTML(c);
-  if($('ct2_proc')&&$('ct2_proc').checked){ html=html.replace('</body></html>', _procuracaoPage(c)+'</body></html>'); }
   var w=window.open('','_blank'); if(!w){ stMsg(st,'err','Permita pop-ups (janelas) para abrir o contrato.'); return; }
   w.document.open(); w.document.write(html); w.document.close(); setTimeout(function(){ try{w.focus();w.print();}catch(e){} },700);
   if($('ct2_reg').checked){ stMsg(st,'wait','Gerando contrato e registrando no sistema…'); _ct2registrar(nome,valor,$('ct2_tel').value.trim(),($('ct2_proj').value||'').trim(),eqList.join(' | '),endereco,dataISO,pagLines.join(' '),st); }
@@ -1451,5 +1450,90 @@ function _procuracaoPage(c){
    +'<div class="sign" style="margin-top:40mm"><div class="l"></div><b>'+c.nome+'</b>CPF: '+c.cpf+'<br>OUTORGANTE</div>'
    +'</div>';
 }
+
+/* ================= Procuração avulsa, excluir do funil, relatório de orçamentos ================= */
+function buildProcuracaoDoc(c){
+  var css="*{margin:0;padding:0;box-sizing:border-box}html,body{font-family:'Times New Roman',Georgia,serif;color:#1a1a1a;font-size:11pt;line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:18mm}.hd{display:flex;align-items:center;gap:14px;border-bottom:2.5px solid #1aa64d;padding-bottom:8px;margin-bottom:14px}.hd img{height:20mm}.hd .co{font-size:8.6pt;color:#444;line-height:1.35}.hd .co b{color:#0e6b31;font-size:10pt}h1{font-size:13pt;text-align:center;color:#0e6b31;margin:12px 0}.parties p{margin:7px 0;text-align:justify}p{margin:7px 0;text-align:justify}ul{margin:6px 0 6px 22px}li{margin:4px 0;text-align:justify}.datacity{margin-top:30px;text-align:center}.sign{margin-top:42mm;text-align:center}.sign .l{border-top:1px solid #000;width:70%;margin:0 auto 4px}.sign b{display:block}";
+  return '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Procuração '+(c.nome||'')+'</title><style>'+css+'</style></head><body>'
+   +'<div class="hd"><img src="'+ASSETS.logo+'"><div class="co"><b>SUDOESTE SOLUÇÕES ELÉTRICAS LTDA</b><br>CNPJ: 51.045.101/0001-10 &nbsp;|&nbsp; Rua Goes Calmon, 145 - Edif. Manoelito Freitas, Sala 007, Centro<br>Vitória da Conquista - BA &nbsp;|&nbsp; Telefone: (77) 99975-0486</div></div>'
+   +'<h1>PROCURAÇÃO</h1>'
+   +'<div class="parties">'
+   +'<p><b>OUTORGANTE:</b> '+c.nome+', '+c.estadoCivil+', inscrito(a) no CPF nº '+c.cpf+', portador(a) do RG nº '+c.rg+', residente e domiciliado(a) na '+c.endereco+'.</p>'
+   +'<p><b>OUTORGADA:</b> SUDOESTE SOLUÇÕES ELÉTRICAS LTDA, pessoa jurídica de direito privado inscrita no CNPJ sob nº 51.045.101/0001-10, com sede na RUA GOES CALMON, 145 - EDIF. MANOELITO FREITAS, SALA 007, CENTRO, VITÓRIA DA CONQUISTA - BA.</p>'
+   +'</div>'
+   +'<p>Pelo presente instrumento particular de procuração, o(a) OUTORGANTE nomeia e constitui sua bastante procuradora a OUTORGADA, conferindo-lhe amplos e gerais poderes para representá-lo(a) perante a concessionária/distribuidora de energia elétrica (COELBA / Neoenergia), a ANEEL e demais órgãos e entidades competentes, públicos ou privados, no que se refere ao sistema de microgeração e/ou minigeração distribuída de energia solar fotovoltaica objeto do contrato firmado entre as partes, podendo para tanto:</p>'
+   +'<ul><li>solicitar, protocolar e acompanhar o pedido de acesso, o parecer de acesso, a vistoria e a homologação da unidade geradora;</li>'
+   +'<li>assinar formulários, requerimentos, termos de responsabilidade técnica e demais documentos necessários ao processo;</li>'
+   +'<li>solicitar a adequação e a troca de titularidade da unidade consumidora, bem como a substituição ou adequação do medidor de energia;</li>'
+   +'<li>aderir e assinar o Sistema de Compensação de Energia Elétrica (SCEE), indicando as unidades consumidoras participantes;</li>'
+   +'<li>prestar e requerer informações, apresentar e retirar documentos, e praticar todos os demais atos necessários ao fiel cumprimento do presente mandato.</li></ul>'
+   +'<p>O presente mandato é conferido exclusivamente para os fins acima descritos, relacionados à conexão e à homologação da referida usina fotovoltaica, vedado o substabelecimento sem prévia autorização, vigorando pelo prazo necessário à conclusão do processo.</p>'
+   +'<div class="datacity">'+c.cidadeUF+', '+c.dataExt+'.</div>'
+   +'<div class="sign"><div class="l"></div><b>'+c.nome+'</b>CPF: '+c.cpf+'<br>OUTORGANTE</div>'
+   +'</body></html>';
+}
+function gerarProcuracaoTab(){
+  var st=$('ct2Status');
+  var nome=$('ct2_nome').value.trim();
+  if(!nome){ stMsg(st,'err','Informe o nome do cliente.'); return; }
+  var endereco=($('ct2_end').value||'').trim()||'-';
+  var dataISO=$('ct2_data').value||hojeISO(), pp=String(dataISO).slice(0,10).split('-');
+  var MES=['JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+  var dataExt=pp[2]+' de '+(MES[parseInt(pp[1],10)-1]||'')+' de '+pp[0];
+  var c={ nome:esc(nome), estadoCivil:esc(($('ct2_ec').value||'').trim().toUpperCase()||'—'), rg:esc(($('ct2_rg').value||'').trim()||'—'), cpf:esc(($('ct2_cpf').value||'').trim()||'—'), endereco:esc(endereco), cidadeUF:'Vitória da Conquista - Bahia', dataExt:dataExt };
+  var html=buildProcuracaoDoc(c);
+  var w=window.open('','_blank'); if(!w){ stMsg(st,'err','Permita pop-ups (janelas) para abrir a procuração.'); return; }
+  w.document.open(); w.document.write(html); w.document.close(); setTimeout(function(){ try{w.focus();w.print();}catch(e){} },700);
+  stMsg(st,'ok','📄 Procuração gerada.');
+}
+function excluirDoFunil(numero,nome){
+  if(!confirm('Excluir o orçamento #'+numero+' de "'+nome+'"?\n\nEle sai do funil E da aba de Orçamentos. Não dá pra desfazer.')) return;
+  Promise.resolve()
+   .then(function(){return sb.from('marketing').delete().eq('numero_orcamento',numero);})
+   .then(function(){return sb.from('orcamentos').delete().eq('numero',numero);})
+   .then(function(){carregarMkt(); if(typeof carregarOrc==='function')carregarOrc();})
+   .catch(function(e){alert('Erro: '+(e&&e.message||e));});
+}
+var _REL_MES=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+function buildRelatorioOrc(orcs){
+  var byYear={};
+  (orcs||[]).forEach(function(o){
+    var ano=(+o.ano)||(o.data?parseInt(String(o.data).slice(0,4),10):0); if(!ano)return;
+    var mes=(+o.mes)||(o.data?parseInt(String(o.data).slice(5,7),10):0);
+    if(!byYear[ano])byYear[ano]={};
+    if(!byYear[ano][mes])byYear[ano][mes]={qtd:0,pot:0,val:0};
+    byYear[ano][mes].qtd++; byYear[ano][mes].pot+=_numFrom(o.potencia)||0; byYear[ano][mes].val+=(+o.valor_final)||0;
+  });
+  var years=Object.keys(byYear).map(Number).sort(function(a,b){return a-b;});
+  var sections='';
+  years.forEach(function(y){
+    var tQ=0,tP=0,tV=0,rows='';
+    var months=Object.keys(byYear[y]).map(Number).sort(function(a,b){return a-b;});
+    months.forEach(function(m){var a=byYear[y][m];tQ+=a.qtd;tP+=a.pot;tV+=a.val;
+      rows+='<tr><td>'+(_REL_MES[m]||('Mês '+m))+'</td><td class="c">'+a.qtd+'</td><td class="r">'+a.pot.toFixed(2).replace('.',',')+' kWp</td><td class="r">'+brl(a.val)+'</td></tr>';});
+    sections+='<div class="ic"><div class="ico">&#128197;</div><h2>ANO <b>'+y+'</b></h2><div class="ln"></div></div>';
+    sections+='<table class="rel"><tr><th>Mês</th><th>Qtd. orçamentos</th><th>Potência total</th><th>Valor total</th></tr>'+rows+'<tr class="tot"><td>TOTAL '+y+'</td><td class="c">'+tQ+'</td><td class="r">'+tP.toFixed(2).replace('.',',')+' kWp</td><td class="r">'+brl(tV)+'</td></tr></table>';
+  });
+  if(!sections)sections='<p style="text-align:center;color:#888">Nenhum orçamento cadastrado.</p>';
+  var hoje=new Date(),dd=('0'+hoje.getDate()).slice(-2),mm=('0'+(hoje.getMonth()+1)).slice(-2);
+  var css=_propCSS()+'.rel{width:100%;border-collapse:collapse;margin:3mm 0 6mm;font-size:10.5pt}.rel th{background:#0e6b31;color:#fff;padding:2.5mm 3mm;text-align:right}.rel th:first-child{text-align:left}.rel td{padding:2.5mm 3mm;border-bottom:1px solid #e6e6e6}.rel td.r{text-align:right}.rel td.c{text-align:center}.rel tr.tot td{background:#0e6b31;color:#fff;font-weight:800}';
+  var H='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de Orçamentos</title><style>'+css+'</style></head><body><div class="page">'+_HEAD()+'<div class="sec">';
+  H+='<div class="ic"><div class="ico">&#128202;</div><h2>RELATÓRIO DE <b>ORÇAMENTOS</b></h2><div class="ln"></div></div>';
+  H+='<div class="fields"><div class="f">Orçamentos gerados por mês — emitido em '+dd+'/'+mm+'/'+hoje.getFullYear()+'</div></div>';
+  H+=sections+'</div>'+_FOOT+'</div></body></html>';
+  return H;
+}
+async function gerarRelatorioOrc(){
+  try{
+    var res=await sb.from('orcamentos').select('*');
+    var html=buildRelatorioOrc((res&&res.data)||[]);
+    var w=window.open('','_blank'); if(!w){ alert('Permita pop-ups (janelas) para abrir o relatório.'); return; }
+    w.document.open(); w.document.write(html); w.document.close(); setTimeout(function(){ try{w.focus();w.print();}catch(e){} },700);
+  }catch(e){ alert('Erro ao gerar o relatório: '+(e&&e.message||e)); }
+}
+(function(){
+  var bp=$('btnCt2Proc'); if(bp) bp.onclick=gerarProcuracaoTab;
+  var br=$('btnOrcRel'); if(br) br.onclick=gerarRelatorioOrc;
+})();
 </script>
 </body></html>
