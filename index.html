@@ -100,7 +100,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
    <div class="vhead"><h1>Financeiro</h1><span class="tag">Ativo · Supabase</span></div>
    <div class="vsub">Fluxo de caixa salvo direto no seu banco de dados. Lance gastos e entradas, controle contas a pagar e valide recebimentos — sem Google.</div>
    <div class="card" style="margin-bottom:16px"><h2>🎯 Metas do mês</h2><div id="metas"><div class="hint">carregando…</div></div></div>
-   <div class="card" style="margin-bottom:16px"><h2>📊 Resumo do mês <button class="btn ghost sm" id="btnRefresh" style="float:right">↻ Atualizar</button></h2><div id="resumo" class="finstats"><div class="hint">carregando…</div></div></div>
+   <div class="card" style="margin-bottom:16px"><h2>📊 Resumo do mês <span style="float:right"><button class="btn ok sm" id="btnDRE">📄 Gerar DRE</button> <button class="btn ghost sm" id="btnRefresh">↻ Atualizar</button></span></h2><div id="resumo" class="finstats"><div class="hint">carregando…</div></div></div>
    <div class="grid">
     <div class="card"><h2>➖ Registrar gasto</h2>
      <div class="frow two"><div><label>Data</label><input id="s_data" type="date"></div><div><label>Tipo</label><select id="s_cat"><option>Variável</option><option>Fixo</option></select></div></div>
@@ -1240,5 +1240,89 @@ function gerarLegendaIG(){
   var bv=$('btnIgVariar'); if(bv) bv.onclick=function(){ igLegIdx++; $('ig_legenda').value=gerarLegendaIG(); };
   var bc=$('btnIgCopiar'); if(bc) bc.onclick=function(){ _copyTxt($('ig_legenda').value); };
 })();
+
+/* ================= DRE — Demonstração do Resultado ================= */
+var _DRE_MES=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+function _dreAgg(rows,ano){
+  var M={};
+  (rows||[]).forEach(function(r){
+    if((+r.ano)!==ano) return;
+    var m=+r.mes||0; if(m<1||m>12) return;
+    if(!M[m]) M[m]={vendas:0,recebido:0,aberto:0,custoVar:0,custoFix:0};
+    var v=(+r.valor)||0, tipo=String(r.tipo||'');
+    if(tipo.indexOf('Entrada')===0){ M[m].vendas+=v; if(String(r.status||'').toLowerCase().indexOf('receb')===0) M[m].recebido+=v; else M[m].aberto+=v; }
+    else if(tipo.indexOf('Sa')===0){ if(String(r.categoria||'').toLowerCase().indexOf('fix')===0) M[m].custoFix+=v; else M[m].custoVar+=v; }
+  });
+  return M;
+}
+function buildDRE(rows){
+  var hoje=new Date();
+  var ano=hoje.getFullYear(), mAtual=hoje.getMonth()+1;
+  var dd=('0'+hoje.getDate()).slice(-2), mm=('0'+mAtual).slice(-2);
+  var agg=_dreAgg(rows,ano);
+  var cur=agg[mAtual]||{vendas:0,recebido:0,aberto:0,custoVar:0,custoFix:0};
+  var margem=cur.vendas-cur.custoVar;
+  var resultado=margem-cur.custoFix;
+  var margemPct=cur.vendas>0?Math.round(margem/cur.vendas*100):0;
+  var resCor=resultado>=0?'#0e6b31':'#c0392b';
+  var linha=function(t,v,cls){ return '<tr class="'+(cls||'')+'"><td>'+t+'</td><td class="r">'+brl(v)+'</td></tr>'; };
+
+  // evolução mensal
+  var meses=Object.keys(agg).map(Number).sort(function(a,b){return a-b;});
+  var tV=0,tCV=0,tCF=0,tR=0, mesRows='';
+  meses.forEach(function(m){
+    var a=agg[m], res=a.vendas-a.custoVar-a.custoFix;
+    tV+=a.vendas; tCV+=a.custoVar; tCF+=a.custoFix; tR+=res;
+    var atual=(m===mAtual)?' style="background:#eafaf0;font-weight:700"':'';
+    mesRows+='<tr'+atual+'><td>'+_DRE_MES[m]+(m===mAtual?' (até '+dd+'/'+mm+')':'')+'</td><td class="r">'+brl(a.vendas)+'</td><td class="r">'+brl(a.custoVar)+'</td><td class="r">'+brl(a.custoFix)+'</td><td class="r" style="color:'+((a.vendas-a.custoVar-a.custoFix)>=0?'#0e6b31':'#c0392b')+'">'+brl(res)+'</td></tr>';
+  });
+  if(!mesRows) mesRows='<tr><td colspan="5" style="text-align:center;color:#888">Sem lançamentos em '+ano+'.</td></tr>';
+
+  var H='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>DRE '+ano+'</title><style>'+_propCSS()
+   +'.dre{width:100%;border-collapse:collapse;margin:4mm 0;font-size:11pt}'
+   +'.dre td{padding:3mm 4mm;border-bottom:1px solid #e6e6e6}.dre td.r{text-align:right;font-weight:700}'
+   +'.dre tr.rec td{background:#0e6b31;color:#fff;font-weight:800}'
+   +'.dre tr.sub td{color:#555;font-size:10pt;border-bottom:1px dashed #eee}'
+   +'.dre tr.neg td{color:#c0392b}'
+   +'.dre tr.tot td{background:#f0f7f2;font-weight:800}'
+   +'.dre tr.res td{background:'+resCor+';color:#fff;font-size:13pt;font-weight:900}'
+   +'.dremes{width:100%;border-collapse:collapse;margin:4mm 0;font-size:10pt}'
+   +'.dremes th{background:#0e6b31;color:#fff;padding:2.5mm 3mm;text-align:right}.dremes th:first-child{text-align:left}'
+   +'.dremes td{padding:2.5mm 3mm;border-bottom:1px solid #e6e6e6}.dremes td.r{text-align:right}'
+   +'.dremes tr.tot td{background:#0e6b31;color:#fff;font-weight:800}'
+   +'</style></head><body>';
+  H+='<div class="page">'+_HEAD()+'<div class="sec">';
+  H+='<div class="ic"><div class="ico">&#128202;</div><h2>DRE — DEMONSTRAÇÃO DO <b>RESULTADO</b></h2><div class="ln"></div></div>';
+  H+='<div class="fields"><div class="f">PERÍODO: '+_DRE_MES[mAtual]+'/'+ano+' (até '+dd+'/'+mm+'/'+ano+')</div><div class="f">REGIME: competência (vendas do mês)</div></div>';
+  H+='<table class="dre">';
+  H+=linha('RECEITA BRUTA (vendas do mês)',cur.vendas,'rec');
+  H+=linha('&nbsp;&nbsp;• Já recebido',cur.recebido,'sub');
+  H+=linha('&nbsp;&nbsp;• A receber',cur.aberto,'sub');
+  H+=linha('(&minus;) Custos variáveis (kits, material, comissões, projetos)',cur.custoVar,'neg');
+  H+=linha('(=) Margem de contribuição ('+margemPct+'%)',margem,'tot');
+  H+=linha('(&minus;) Custos fixos (internet, condomínio, etc.)',cur.custoFix,'neg');
+  H+=linha('(=) RESULTADO DO PERÍODO — '+(resultado>=0?'Lucro':'Prejuízo'),resultado,'res');
+  H+='</table>';
+  H+='<div class="ic" style="margin-top:6mm"><div class="ico">&#128197;</div><h2>EVOLUÇÃO <b>MENSAL</b> '+ano+'</h2><div class="ln"></div></div>';
+  H+='<table class="dremes"><tr><th>Mês</th><th>Vendas</th><th>Custos var.</th><th>Custos fixos</th><th>Resultado</th></tr>'+mesRows;
+  H+='<tr class="tot"><td>TOTAL '+ano+'</td><td class="r">'+brl(tV)+'</td><td class="r">'+brl(tCV)+'</td><td class="r">'+brl(tCF)+'</td><td class="r">'+brl(tR)+'</td></tr></table>';
+  H+='<p style="font-size:8.6pt;color:#777;margin-top:3mm">* Receita = vendas lançadas no mês (recebidas + a receber). Custos = saídas pagas, separadas em variáveis e fixas. O mês atual considera os lançamentos feitos até a data acima.</p>';
+  H+='</div>'+_FOOT+'</div></body></html>';
+  return H;
+}
+async function gerarDRE(){
+  var b=$('btnDRE'); if(b) b.disabled=true;
+  try{
+    var res=await sb.from('financeiro').select('*');
+    var rows=(res&&res.data)||[];
+    var html=buildDRE(rows);
+    var w=window.open('','_blank');
+    if(!w){ alert('Permita pop-ups (janelas) para abrir a DRE.'); if(b)b.disabled=false; return; }
+    w.document.open(); w.document.write(html); w.document.close();
+    setTimeout(function(){ try{w.focus();w.print();}catch(e){} },700);
+  }catch(e){ alert('Erro ao gerar a DRE: '+(e&&e.message||e)); }
+  if(b) b.disabled=false;
+}
+(function(){ var b=$('btnDRE'); if(b) b.onclick=gerarDRE; })();
 </script>
 </body></html>
