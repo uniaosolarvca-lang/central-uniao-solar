@@ -367,25 +367,30 @@ async function testarConexao(){
 }
 
 /* ==================== FINANCEIRO ==================== */
+/* Data padrão dos lançamentos = mês que está sendo visualizado no seletor (hoje se for o mês atual; senão dia 01 do mês) */
+function _finMesSelecionado(){var sel=($('finMesSel')&&$('finMesSel').value)||'';var m,a;if(/^\d{4}-\d{2}$/.test(sel)){a=parseInt(sel.slice(0,4),10);m=parseInt(sel.slice(5,7),10);}else{var h=new Date();m=h.getMonth()+1;a=h.getFullYear();}return {mes:m,ano:a};}
+function _finDataPadrao(){var s=_finMesSelecionado();var h=new Date();if(s.mes===(h.getMonth()+1)&&s.ano===h.getFullYear())return hojeISO();return s.ano+'-'+('0'+s.mes).slice(-2)+'-01';}
+function _finDataEhDoMesSel(iso){if(!iso)return false;var s=_finMesSelecionado();var p=String(iso).slice(0,10);return p.slice(0,4)===(''+s.ano)&&parseInt(p.slice(5,7),10)===s.mes;}
+function _finSetDefaultDates(){var d=_finDataPadrao();['s_data','e_data','c_venc'].forEach(function(id){var el=$(id);if(!el)return;if(!el.value||!_finDataEhDoMesSel(el.value))el.value=d;});}
 $('btnSaida').onclick=async function(){const st=$('stSaida'),b=this;const valor=parseFloat($('s_valor').value);
-  if(!(valor>0)){stMsg(st,'err','Informe um valor válido.');return;}const data=$('s_data').value||hojeISO(),ma=mesAno(data);
+  if(!(valor>0)){stMsg(st,'err','Informe um valor válido.');return;}const data=$('s_data').value||_finDataPadrao(),ma=mesAno(data);
   stMsg(st,'wait','Salvando…');b.disabled=true;
   const {error}=await sb.from('financeiro').insert({tipo:'Saída',status:'Pago',data_prevista:data,data_realizada:data,cliente_fornecedor:$('s_onde').value.trim(),descricao:$('s_desc').value.trim(),categoria:$('s_cat').value,conta:$('s_conta').value.trim(),valor:valor,origem:'Manual',mes:ma.mes,ano:ma.ano});
   if(error)stMsg(st,'err','Erro: '+error.message);else{stMsg(st,'ok','✓ Gasto lançado!');['s_onde','s_desc','s_valor','s_conta'].forEach(function(id){$(id).value='';});carregarFin();}b.disabled=false;};
 $('btnEntrada').onclick=async function(){const st=$('stEntrada'),b=this;const valor=parseFloat($('e_valor').value);
-  if(!(valor>0)){stMsg(st,'err','Informe um valor válido.');return;}const receb=$('e_status').value==='sim';const data=$('e_data').value||hojeISO(),ma=mesAno(data);
+  if(!(valor>0)){stMsg(st,'err','Informe um valor válido.');return;}const receb=$('e_status').value==='sim';const data=$('e_data').value||_finDataPadrao(),ma=mesAno(data);
   stMsg(st,'wait','Salvando…');b.disabled=true;
   const {error}=await sb.from('financeiro').insert({tipo:'Entrada',status:receb?'Recebido':'Em aberto',data_prevista:data,data_realizada:receb?data:null,cliente_fornecedor:$('e_cliente').value.trim(),descricao:$('e_desc').value.trim(),conta:$('e_conta').value.trim(),valor:valor,origem:'Manual',mes:ma.mes,ano:ma.ano});
   if(error)stMsg(st,'err','Erro: '+error.message);else{stMsg(st,'ok','✓ Entrada lançada!');['e_cliente','e_desc','e_valor','e_conta'].forEach(function(id){$(id).value='';});carregarFin();}b.disabled=false;};
 $('btnConta').onclick=async function(){const st=$('stConta'),b=this;const valor=parseFloat($('c_valor').value);
   if(!(valor>0)){stMsg(st,'err','Informe um valor válido.');return;}if(!$('c_dest').value.trim()){stMsg(st,'err','Informe para onde é.');return;}
-  const venc=$('c_venc').value||hojeISO(),ma=mesAno(venc);stMsg(st,'wait','Salvando…');b.disabled=true;
+  const venc=$('c_venc').value||_finDataPadrao(),ma=mesAno(venc);stMsg(st,'wait','Salvando…');b.disabled=true;
   const {error}=await sb.from('financeiro').insert({tipo:'Saída',status:'A pagar',data_prevista:venc,cliente_fornecedor:$('c_dest').value.trim(),descricao:$('c_desc').value.trim(),categoria:'Variável',conta:$('c_conta').value.trim(),valor:valor,origem:'Conta a pagar',boleto:$('c_boleto').value.trim(),mes:ma.mes,ano:ma.ano});
   if(error)stMsg(st,'err','Erro: '+error.message);else{stMsg(st,'ok','✓ Conta registrada!');['c_valor','c_dest','c_desc','c_boleto','c_conta'].forEach(function(id){$(id).value='';});carregarFin();}b.disabled=false;};
-async function pagarConta(id){const data=hojeISO(),ma=mesAno(data);const {error}=await sb.from('financeiro').update({status:'Pago',data_realizada:data,mes:ma.mes,ano:ma.ano}).eq('id',id);if(error)alert('Erro: '+error.message);else carregarFin();}
+async function pagarConta(id){const data=hojeISO();const {error}=await sb.from('financeiro').update({status:'Pago',data_realizada:data}).eq('id',id);if(error)alert('Erro: '+error.message);else carregarFin();}
 async function receber(row,vin){const aberto=(+row.valor)||0;let rec=vin!==''&&vin!=null?parseFloat(vin):aberto;if(!(rec>0))rec=aberto;if(rec>aberto)rec=aberto;
-  const hoje=hojeISO(),maq=mesAno(hoje);
-  const {error}=await sb.from('financeiro').update({status:'Recebido',data_realizada:hoje,valor:rec,mes:maq.mes,ano:maq.ano}).eq('id',row.id);if(error){alert('Erro: '+error.message);return;}
+  const hoje=hojeISO();
+  const {error}=await sb.from('financeiro').update({status:'Recebido',data_realizada:hoje,valor:rec}).eq('id',row.id);if(error){alert('Erro: '+error.message);return;}
   const saldo=Math.round((aberto-rec)*100)/100;if(saldo>0){await sb.from('financeiro').insert({tipo:'Entrada',status:'Em aberto',data_prevista:row.data_prevista,cliente_fornecedor:row.cliente_fornecedor,descricao:(row.descricao||'')+' (saldo)',valor:saldo,origem:row.origem,mes:row.mes,ano:row.ano});}carregarFin();}
 async function carregarFin(){const {data,error}=await sb.from('financeiro').select('*').order('id',{ascending:false});
   if(error){$('resumo').innerHTML='<div class="st show err">Erro: '+error.message+'</div>';return;}
@@ -394,12 +399,19 @@ async function carregarFin(){const {data,error}=await sb.from('financeiro').sele
   if(/^\d{4}-\d{2}$/.test(sel)){ano=parseInt(sel.slice(0,4),10);mes=parseInt(sel.slice(5,7),10);}
   else{const h=new Date();mes=h.getMonth()+1;ano=h.getFullYear();if($('finMesSel'))$('finMesSel').value=ano+'-'+('0'+mes).slice(-2);}
   let em=0,sm=0,eat=0,cpt=0,vm=0;const contas=[],ab=[];
+  function _noMesReal(iso){if(!iso)return false;var s=String(iso).slice(0,10);return s.slice(0,4)===(''+ano)&&parseInt(s.slice(5,7),10)===mes;}
   data.forEach(function(r){const noMes=(r.mes===mes&&r.ano===ano),v=(+r.valor)||0;
-    if(r.tipo==='Entrada'&&r.status==='Em aberto'){ab.push(r);eat+=v;}
-    if(r.tipo==='Entrada'&&r.status==='Recebido'&&noMes)em+=v;
-    if(r.tipo==='Entrada'&&noMes)vm+=v;
-    if(r.tipo==='Saída'&&r.status==='A pagar'){contas.push(r);cpt+=v;}
-    if(r.tipo==='Saída'&&r.status!=='A pagar'&&noMes)sm+=v;});
+    const ent=r.tipo==='Entrada',sai=r.tipo==='Saída';
+    // A RECEBER (pendências em aberto, visão geral)
+    if(ent&&r.status==='Em aberto'){ab.push(r);eat+=v;}
+    // RECEBIDO NO MÊS (caixa): pela data em que o dinheiro entrou — pendência quitada aparece no mês da quitação
+    if(ent&&r.status==='Recebido'&&_noMesReal(r.data_realizada))em+=v;
+    // VENDIDO / META: só contratos e entradas avulsas, pelo mês do lançamento (competência), contados uma única vez
+    if(ent&&noMes)vm+=v;
+    // CONTAS A PAGAR (visão geral)
+    if(sai&&r.status==='A pagar'){contas.push(r);cpt+=v;}
+    // SAÍDAS PAGAS NO MÊS (caixa): pela data do pagamento
+    if(sai&&r.status!=='A pagar'&&_noMesReal(r.data_realizada))sm+=v;});
   const saldo=em-sm,falta=Math.max(0,META_MENSAL-vm),pct=Math.min(100,Math.round(vm/META_MENSAL*100));
   $('metas').innerHTML='<div class="metaGrid"><div class="metaBox b-meta"><div class="k">Meta do mês</div><div class="v">'+brl(META_MENSAL)+'</div></div><div class="metaBox b-vend"><div class="k">Vendido</div><div class="v">'+brl(vm)+'</div></div><div class="metaBox b-falta"><div class="k">Falta</div><div class="v">'+brl(falta)+'</div></div></div><div class="barWrap"><div class="bar" style="width:'+Math.max(pct,6)+'%">'+pct+'%</div></div>';
   $('resumo').innerHTML='<div class="fs pos"><div class="k">Recebido no mês</div><div class="v">'+brl(em)+'</div></div><div class="fs neg"><div class="k">Saídas pagas</div><div class="v">'+brl(sm)+'</div></div><div class="fs '+(saldo>=0?'pos':'neg')+'"><div class="k">Saldo do mês</div><div class="v">'+brl(saldo)+'</div></div><div class="fs open"><div class="k">A receber</div><div class="v">'+brl(eat)+'</div></div><div class="fs open"><div class="k">Contas a pagar</div><div class="v">'+brl(cpt)+'</div></div>';
@@ -421,7 +433,8 @@ async function carregarFin(){const {data,error}=await sb.from('financeiro').sele
     var meta=[];if(r.cliente_fornecedor)meta.push(esc(r.cliente_fornecedor));if(r.data_realizada)meta.push(dBR(r.data_realizada));else if(r.data_prevista)meta.push('prev. '+dBR(r.data_prevista));
     d.innerHTML='<div class="t" style="display:flex;justify-content:space-between;align-items:center"><span>'+esc(r.descricao||r.cliente_fornecedor||r.tipo)+'</span><span style="color:'+cor+'">'+sig+' '+brl(r.valor)+'</span></div><div class="sub" style="margin:2px 0 4px">'+esc(r.tipo)+' · '+esc(r.status||'')+(meta.length?' · '+meta.join(' · '):'')+'</div><div class="act"><button class="btn ghost sm bedf">✏️ Editar</button><button class="btn ghost sm bdelf" style="color:#c0392b">🗑</button></div>';
     d.querySelector('.bedf').onclick=function(){editarFin(r);};
-    d.querySelector('.bdelf').onclick=function(){excluirFin(r);};lm.appendChild(d);});}
+    d.querySelector('.bdelf').onclick=function(){excluirFin(r);};lm.appendChild(d);});
+  _finSetDefaultDates();}
 $('btnRefresh').onclick=carregarFin;
 (function(){var s=$('finMesSel');if(s)s.onchange=carregarFin;})();
 
@@ -1563,6 +1576,16 @@ function _ct2prefill(){
 }
 async function _ct2registrar(nome,valor,tel,proj,material,endereco,dataISO,pag,st){
   try{
+    // TRAVA ANTI-DUPLICAÇÃO: se já existe obra para este orçamento (ou, sem orçamento, para este cliente), não cria de novo
+    try{
+      var chk=await sb.from('obras').select('id,cliente,projeto');
+      var existentes=(chk&&chk.data)||[];
+      var dup=existentes.find(function(o){
+        if(proj) return String(o.projeto||'').trim()===String(proj).trim();
+        return String(o.cliente||'').trim().toLowerCase()===String(nome||'').trim().toLowerCase();
+      });
+      if(dup){ stMsg(st,'ok','⚠ Este contrato já estava registrado — a obra e o lançamento no financeiro NÃO foram duplicados. (O PDF do contrato foi gerado normalmente.)'); carregarContratos(); return; }
+    }catch(e){}
     await sb.from('obras').insert({cliente:nome,projeto:proj||null,valor:valor,material:material,data_contrato:dataISO,status:'0/8',telefone:tel||null,endereco_instalacao:endereco||null});
     var ma=mesAno(dataISO);
     await sb.from('financeiro').insert({tipo:'Entrada',status:'Em aberto',data_prevista:dataISO,cliente_fornecedor:nome,descricao:'Contrato'+(proj?(' nº '+proj):''),valor:valor,origem:'Contrato',boleto:pag,mes:ma.mes,ano:ma.ano});
