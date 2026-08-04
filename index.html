@@ -108,7 +108,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
    <div class="vhead"><h1>Financeiro</h1><span class="tag">Ativo · Supabase</span></div>
    <div class="vsub">Fluxo de caixa salvo direto no seu banco de dados. Lance gastos e entradas, controle contas a pagar e valide recebimentos — sem Google.</div>
    <div class="card" style="margin-bottom:16px"><h2>🎯 Metas do mês</h2><div id="metas"><div class="hint">carregando…</div></div></div>
-   <div class="card" style="margin-bottom:16px"><h2>📊 Resumo do mês <span style="float:right"><button class="btn ok sm" id="btnDRE">📄 Gerar DRE</button> <button class="btn ghost sm" id="btnRefresh">↻ Atualizar</button></span></h2><div id="resumo" class="finstats"><div class="hint">carregando…</div></div></div>
+   <div class="card" style="margin-bottom:16px"><h2>📊 Resumo <span style="float:right;display:inline-flex;gap:6px;align-items:center"><input type="month" id="finMesSel" style="padding:5px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:13px"><button class="btn ok sm" id="btnDRE">📄 Gerar DRE</button> <button class="btn ghost sm" id="btnRefresh">↻ Atualizar</button></span></h2><div id="resumo" class="finstats"><div class="hint">carregando…</div></div></div>
    <div class="grid">
     <div class="card"><h2>➖ Registrar gasto</h2>
      <div class="frow two"><div><label>Data</label><input id="s_data" type="date"></div><div><label>Tipo</label><select id="s_cat"><option>Variável</option><option>Fixo</option></select></div></div>
@@ -130,7 +130,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
      <div class="actions"><button class="btn primary" id="btnConta">🧾 Registrar conta</button></div><div id="stConta" class="st"></div></div>
     <div class="card"><h2>📤 Contas a pagar <span id="cpTot" style="float:right;font-size:13px;color:#b9770e;font-weight:800"></span></h2><div id="listaContas"><div class="hint">carregando…</div></div></div>
     <div class="card"><h2>📥 Recebimentos em aberto</h2><div id="listaAberto"><div class="hint">carregando…</div></div></div>
-    <div class="card"><h2>🧾 Últimos lançamentos</h2><div id="listaUltimos"><div class="hint">carregando…</div></div></div>
+    <div class="card"><h2 id="tituloLanc">🧾 Lançamentos do mês</h2><div id="listaUltimos"><div class="hint">carregando…</div></div></div>
    </div>
   </section>
 
@@ -317,6 +317,21 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
   </div>
 </div>
 
+<div id="finEditModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;padding:20px;width:440px;max-width:94vw;max-height:92vh;overflow:auto">
+    <h2 style="margin:0 0 12px;color:#0e6b31">✏️ Editar lançamento</h2>
+    <input type="hidden" id="fe_id">
+    <div class="frow two"><div><label>Tipo</label><select id="fe_tipo"><option>Entrada</option><option>Saída</option></select></div><div><label>Situação</label><select id="fe_status"><option>Recebido</option><option>Em aberto</option><option>Pago</option><option>A pagar</option></select></div></div>
+    <div class="frow"><label>Descrição</label><input id="fe_desc"></div>
+    <div class="frow"><label>Cliente / Fornecedor / Onde</label><input id="fe_onde"></div>
+    <div class="frow two"><div><label>Valor (R$)</label><input id="fe_valor" type="number" step="0.01"></div><div><label>Mês de competência</label><input id="fe_comp" type="month"></div></div>
+    <div class="frow two"><div><label>Categoria</label><select id="fe_cat"><option value=""></option><option>Variável</option><option>Fixo</option></select></div><div><label>Conta</label><input id="fe_conta"></div></div>
+    <div class="frow two"><div><label>Data realizada</label><input id="fe_dreal" type="date"></div><div><label>Data prevista</label><input id="fe_dprev" type="date"></div></div>
+    <div class="frow"><label>Boleto / observação</label><input id="fe_boleto"></div>
+    <div class="actions" style="margin-top:8px"><button class="btn primary sm" id="feSalvar">💾 Salvar</button><button class="btn ghost sm" id="feFechar">Cancelar</button></div>
+    <div id="feStatus" class="st"></div>
+  </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPA_URL='https://cswnuhvjvqtbpwoawgvl.supabase.co';
@@ -338,6 +353,7 @@ document.querySelectorAll('.navitem').forEach(function(n){n.onclick=function(){
   document.querySelectorAll('.view').forEach(function(x){x.classList.remove('active');});
   n.classList.add('active');$(n.dataset.view).classList.add('active');
   var v=n.dataset.view;
+  if(v==='financeiro')carregarFin();
   if(v==='orcamento')carregarOrc(); if(v==='obra')carregarObras(); if(v==='posvenda')carregarPos();
   if(v==='marketing')carregarMkt(); if(v==='manutencoes')carregarManut(); if(v==='equipes')carregarEq();
   if(v==='contratos')carregarContratos(); if(v==='dados')carregarDados(); if(v==='usuarios')carregarUsuarios();
@@ -368,11 +384,16 @@ $('btnConta').onclick=async function(){const st=$('stConta'),b=this;const valor=
   if(error)stMsg(st,'err','Erro: '+error.message);else{stMsg(st,'ok','✓ Conta registrada!');['c_valor','c_dest','c_desc','c_boleto','c_conta'].forEach(function(id){$(id).value='';});carregarFin();}b.disabled=false;};
 async function pagarConta(id){const data=hojeISO(),ma=mesAno(data);const {error}=await sb.from('financeiro').update({status:'Pago',data_realizada:data,mes:ma.mes,ano:ma.ano}).eq('id',id);if(error)alert('Erro: '+error.message);else carregarFin();}
 async function receber(row,vin){const aberto=(+row.valor)||0;let rec=vin!==''&&vin!=null?parseFloat(vin):aberto;if(!(rec>0))rec=aberto;if(rec>aberto)rec=aberto;
-  const {error}=await sb.from('financeiro').update({status:'Recebido',data_realizada:hojeISO(),valor:rec}).eq('id',row.id);if(error){alert('Erro: '+error.message);return;}
+  const hoje=hojeISO(),maq=mesAno(hoje);
+  const {error}=await sb.from('financeiro').update({status:'Recebido',data_realizada:hoje,valor:rec,mes:maq.mes,ano:maq.ano}).eq('id',row.id);if(error){alert('Erro: '+error.message);return;}
   const saldo=Math.round((aberto-rec)*100)/100;if(saldo>0){await sb.from('financeiro').insert({tipo:'Entrada',status:'Em aberto',data_prevista:row.data_prevista,cliente_fornecedor:row.cliente_fornecedor,descricao:(row.descricao||'')+' (saldo)',valor:saldo,origem:row.origem,mes:row.mes,ano:row.ano});}carregarFin();}
 async function carregarFin(){const {data,error}=await sb.from('financeiro').select('*').order('id',{ascending:false});
   if(error){$('resumo').innerHTML='<div class="st show err">Erro: '+error.message+'</div>';return;}
-  const h=new Date(),mes=h.getMonth()+1,ano=h.getFullYear();let em=0,sm=0,eat=0,cpt=0,vm=0;const contas=[],ab=[];
+  _finCache=data||[];
+  let mes,ano;const sel=($('finMesSel')&&$('finMesSel').value)||'';
+  if(/^\d{4}-\d{2}$/.test(sel)){ano=parseInt(sel.slice(0,4),10);mes=parseInt(sel.slice(5,7),10);}
+  else{const h=new Date();mes=h.getMonth()+1;ano=h.getFullYear();if($('finMesSel'))$('finMesSel').value=ano+'-'+('0'+mes).slice(-2);}
+  let em=0,sm=0,eat=0,cpt=0,vm=0;const contas=[],ab=[];
   data.forEach(function(r){const noMes=(r.mes===mes&&r.ano===ano),v=(+r.valor)||0;
     if(r.tipo==='Entrada'&&r.status==='Em aberto'){ab.push(r);eat+=v;}
     if(r.tipo==='Entrada'&&r.status==='Recebido'&&noMes)em+=v;
@@ -391,13 +412,18 @@ async function carregarFin(){const {data,error}=await sb.from('financeiro').sele
   ab.forEach(function(r){const d=document.createElement('div');d.className='item';const m=[];if(r.cliente_fornecedor)m.push(esc(r.cliente_fornecedor));if(r.data_prevista)m.push('Prev.: '+dBR(r.data_prevista));
     d.innerHTML='<div class="t">'+brl(r.valor)+' — '+esc(r.descricao||'')+' <span class="badge ab">em aberto</span></div><div class="sub">'+m.join(' · ')+'</div><div class="act"><input class="rv" type="number" step="0.01" placeholder="valor recebido (opc.)"><button class="btn ok sm br">✓ Recebido</button></div>';
     d.querySelector('.br').onclick=function(){this.disabled=true;receber(r,d.querySelector('.rv').value);};$('listaAberto').appendChild(d);});
-  const ult=data.slice(0,15);$('listaUltimos').innerHTML='';
-  if(!ult.length){$('listaUltimos').innerHTML='<div class="hint">Nenhum lançamento ainda.</div>';}
-  ult.forEach(function(r){const cor=r.tipo==='Entrada'?'var(--gd)':'#c0392b',sig=r.tipo==='Entrada'?'+':'−';
+  const doMes=data.filter(function(r){return r.mes===mes&&r.ano===ano;});
+  var lm=$('listaUltimos');lm.innerHTML='';
+  var tit=document.getElementById('tituloLanc'); if(tit) tit.textContent='🧾 Lançamentos de '+('0'+mes).slice(-2)+'/'+ano+' ('+doMes.length+')';
+  if(!doMes.length){lm.innerHTML='<div class="hint">Nenhum lançamento neste mês.</div>';}
+  doMes.forEach(function(r){const cor=r.tipo==='Entrada'?'var(--gd)':'#c0392b',sig=r.tipo==='Entrada'?'+':'−';
     const d=document.createElement('div');d.className='item';d.style.padding='8px 11px';
-    d.innerHTML='<div class="t" style="display:flex;justify-content:space-between;align-items:center"><span>'+esc(r.descricao||r.cliente_fornecedor||r.tipo)+'</span><span style="color:'+cor+'">'+sig+' '+brl(r.valor)+'</span></div><div class="sub" style="margin:2px 0 0;display:flex;justify-content:space-between;align-items:center"><span>'+esc(r.tipo)+' · '+esc(r.status||'')+'</span><button class="btn ghost sm bdelf" style="color:#c0392b;padding:2px 7px">🗑</button></div>';
-    d.querySelector('.bdelf').onclick=function(){excluirFin(r);};$('listaUltimos').appendChild(d);});}
+    var meta=[];if(r.cliente_fornecedor)meta.push(esc(r.cliente_fornecedor));if(r.data_realizada)meta.push(dBR(r.data_realizada));else if(r.data_prevista)meta.push('prev. '+dBR(r.data_prevista));
+    d.innerHTML='<div class="t" style="display:flex;justify-content:space-between;align-items:center"><span>'+esc(r.descricao||r.cliente_fornecedor||r.tipo)+'</span><span style="color:'+cor+'">'+sig+' '+brl(r.valor)+'</span></div><div class="sub" style="margin:2px 0 4px">'+esc(r.tipo)+' · '+esc(r.status||'')+(meta.length?' · '+meta.join(' · '):'')+'</div><div class="act"><button class="btn ghost sm bedf">✏️ Editar</button><button class="btn ghost sm bdelf" style="color:#c0392b">🗑</button></div>';
+    d.querySelector('.bedf').onclick=function(){editarFin(r);};
+    d.querySelector('.bdelf').onclick=function(){excluirFin(r);};lm.appendChild(d);});}
 $('btnRefresh').onclick=carregarFin;
+(function(){var s=$('finMesSel');if(s)s.onchange=carregarFin;})();
 
 /* ==================== ORÇAMENTO ==================== */
 $('btnOrc').onclick=async function(){const st=$('stOrc'),b=this;const nome=$('o_nome').value.trim();const vfin=parseFloat($('o_vfin').value);
@@ -488,9 +514,15 @@ function abrirObra(o){obraSel=o;current=o;let h='<h2 style="margin-top:0">🔧 '
   h+='<div class="actions"><button class="btn ghost sm" id="btnSalvarEquipe">💾 Salvar equipe/valor</button><button class="btn primary sm" id="btnContratoServ">📄 Gerar Contrato de Serviço (PDF)</button><button class="btn ok sm" id="btnLinkEquipe">🔗 Gerar link para a equipe</button></div>';
   h+='<div id="execLinkBox" style="display:none;margin-top:8px"><label style="font-size:12px;color:#5a6a60;font-weight:700">Link para enviar à equipe (baixa o contrato, assina e envia as fotos da vistoria)</label><div style="display:flex;gap:6px"><input id="execLinkInput" readonly style="flex:1;font-size:12px"><button class="btn ghost sm" id="btnCopyExec">📋 Copiar</button></div></div>';
   h+='<div id="ctServStatus" class="st"></div></div>';
+  h+='<div style="margin-top:14px;border-top:1.5px solid var(--line);padding-top:10px"><label style="font-weight:700;font-size:12px;color:#5a6a60;display:block;margin-bottom:6px">⚡ SERVIÇOS COELBA</label>';
+  h+='<div class="hint" style="margin:0 0 8px">Esta obra tem serviços junto à COELBA (aumento de carga, troca de padrão, religação, vistoria, etc.)?</div>';
+  h+='<div class="frow two"><div><label>Há serviços de COELBA?</label><select id="obraCoelba"><option value="Não">Não</option><option value="Sim">Sim</option></select></div><div><label>Data prevista/execução</label><input id="obraCoelbaData" type="date"></div></div>';
+  h+='<div id="coelbaWrap" style="display:none"><div class="frow"><label>Quais serviços? (um por linha — vira a lista da OS)</label><textarea id="obraCoelbaServ" rows="4" placeholder="Ex.: Aumento de carga para 220V trifásico&#10;Troca do padrão de entrada&#10;Solicitação de vistoria COELBA"></textarea></div>';
+  h+='<div class="actions"><button class="btn ghost sm" id="btnSalvarCoelba">💾 Salvar COELBA</button><button class="btn primary sm" id="btnGerarOSCoelba">📄 Gerar OS (PDF)</button></div></div>';
+  h+='<div id="coelbaStatus" class="st"></div></div>';
   $('obraDet').innerHTML=h;aplicarGate();
   document.querySelectorAll('#obraSteps input').forEach(function(inp){inp.addEventListener('change',aplicarGate);});
-  $('btnObraSalvar').onclick=salvarObra;initCustos(o);initEquipeObra(o);
+  $('btnObraSalvar').onclick=salvarObra;initCustos(o);initEquipeObra(o);initCoelbaObra(o);
   document.querySelectorAll('#obraSteps .waStep').forEach(function(btn){btn.onclick=function(){avisarWhats(o,+btn.dataset.wa);};});
   $('btnExcluirObra').onclick=excluirObraTudo;}
 function coletaEtapas(){const a=['','','','','','','',''];document.querySelectorAll('#obraSteps input').forEach(function(inp){a[+inp.dataset.s]=inp.value;});return a;}
@@ -511,7 +543,8 @@ async function carregarPos(){const {data,error}=await sb.from('posvenda').select
   if(!data.length){$('listaPos').innerHTML='<div class="hint">Nenhum chamado.</div>';return;}
   $('listaPos').innerHTML='';data.forEach(function(c){const concl=c.status==='Concluído';const d=document.createElement('div');d.className='item';
     const m=[];if(c.data)m.push('Data: '+dBR(c.data));if(c.prazo)m.push('Prazo: '+dBR(c.prazo));if(c.atendente)m.push('Atend.: '+esc(c.atendente));
-    d.innerHTML='<div class="t">'+esc(c.cliente)+' <span class="badge '+(concl?'ab':'ap')+'">'+(concl?'Concluído':'Aberto')+'</span></div><div class="sub">'+esc(c.servico||'')+'</div><div class="sub">'+m.join(' · ')+'</div><div class="act"><button class="btn ghost sm bt">'+(concl?'↺ Reabrir':'✓ Concluir')+'</button><button class="btn ghost sm bx" style="color:#c0392b">🗑 Excluir</button></div>';
+    d.innerHTML='<div class="t">'+esc(c.cliente)+' <span class="badge '+(concl?'ab':'ap')+'">'+(concl?'Concluído':'Aberto')+'</span></div><div class="sub">'+esc(c.servico||'')+'</div><div class="sub">'+m.join(' · ')+'</div><div class="act"><button class="btn primary sm bos">📄 Gerar OS</button><button class="btn ghost sm bt">'+(concl?'↺ Reabrir':'✓ Concluir')+'</button><button class="btn ghost sm bx" style="color:#c0392b">🗑 Excluir</button></div>';
+    d.querySelector('.bos').onclick=function(){var dd={numero:_osNumero('OS-PV',c.id),tipo:'PÓS-VENDA / ATENDIMENTO',data:c.data||hojeISO(),cliente:c.cliente||'',endereco:'',contato:'',protocolo:c.protocolo||'',responsavel:c.atendente||'',itens:String(c.servico||'').split(/\r?\n/),obs:(c.prazo?'Prazo de atendimento: '+dBR(c.prazo)+'. ':'')+'Chamado de pós-venda registrado na Central União Solar.'};_abrirOS(dd,null);};
     d.querySelector('.bt').onclick=async function(){await sb.from('posvenda').update({status:concl?'Aberto':'Concluído'}).eq('id',c.id);carregarPos();};
     d.querySelector('.bx').onclick=async function(){if(!confirm('Excluir o chamado de '+c.cliente+'?'))return;await sb.from('posvenda').delete().eq('id',c.id);carregarPos();};$('listaPos').appendChild(d);});}
 $('btnPosRefresh').onclick=carregarPos;
@@ -1378,9 +1411,10 @@ function _dreAgg(rows,ano){
   });
   return M;
 }
-function buildDRE(rows){
+function buildDRE(rows, selMes, selAno){
   var hoje=new Date();
-  var ano=hoje.getFullYear(), mAtual=hoje.getMonth()+1;
+  var realMes=hoje.getMonth()+1, realAno=hoje.getFullYear();
+  var ano=selAno||realAno, mAtual=selMes||realMes;
   var dd=('0'+hoje.getDate()).slice(-2), mm=('0'+mAtual).slice(-2);
   var agg=_dreAgg(rows,ano);
   var cur=agg[mAtual]||{vendas:0,recebido:0,aberto:0,custoVar:0,custoFix:0};
@@ -1390,33 +1424,76 @@ function buildDRE(rows){
   var resCor=resultado>=0?'#0e6b31':'#c0392b';
   var linha=function(t,v,cls){ return '<tr class="'+(cls||'')+'"><td>'+t+'</td><td class="r">'+brl(v)+'</td></tr>'; };
 
-  // evolução mensal
+  // evolução mensal (todos os meses do ano)
   var meses=Object.keys(agg).map(Number).sort(function(a,b){return a-b;});
   var tV=0,tCV=0,tCF=0,tR=0, mesRows='';
   meses.forEach(function(m){
     var a=agg[m], res=a.vendas-a.custoVar-a.custoFix;
     tV+=a.vendas; tCV+=a.custoVar; tCF+=a.custoFix; tR+=res;
-    var atual=(m===mAtual)?' style="background:#eafaf0;font-weight:700"':'';
-    mesRows+='<tr'+atual+'><td>'+_DRE_MES[m]+(m===mAtual?' (até '+dd+'/'+mm+')':'')+'</td><td class="r">'+brl(a.vendas)+'</td><td class="r">'+brl(a.custoVar)+'</td><td class="r">'+brl(a.custoFix)+'</td><td class="r" style="color:'+((a.vendas-a.custoVar-a.custoFix)>=0?'#0e6b31':'#c0392b')+'">'+brl(res)+'</td></tr>';
+    var sel=(m===mAtual)?' style="background:#eafaf0;font-weight:700"':'';
+    var noteAtual=(m===realMes&&ano===realAno)?' (até '+dd+'/'+mm+')':'';
+    mesRows+='<tr'+sel+'><td>'+_DRE_MES[m]+noteAtual+'</td><td class="r">'+brl(a.vendas)+'</td><td class="r">'+brl(a.custoVar)+'</td><td class="r">'+brl(a.custoFix)+'</td><td class="r" style="color:'+((a.vendas-a.custoVar-a.custoFix)>=0?'#0e6b31':'#c0392b')+'">'+brl(res)+'</td></tr>';
   });
   if(!mesRows) mesRows='<tr><td colspan="5" style="text-align:center;color:#888">Sem lançamentos em '+ano+'.</td></tr>';
 
-  var H='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>DRE '+ano+'</title><style>'+_propCSS()
-   +'.dre{width:100%;border-collapse:collapse;margin:4mm 0;font-size:11pt}'
-   +'.dre td{padding:3mm 4mm;border-bottom:1px solid #e6e6e6}.dre td.r{text-align:right;font-weight:700}'
+  // DETALHAMENTO — cada transação do mês selecionado
+  var det=(rows||[]).filter(function(r){ return (+r.ano)===ano && (+r.mes)===mAtual; });
+  det.sort(function(a,b){ var da=(a.data_realizada||a.data_prevista||''), db=(b.data_realizada||b.data_prevista||''); if(da<db)return -1; if(da>db)return 1; return ((+a.id)||0)-((+b.id)||0); });
+  var detRows='', nEnt=0,nSai=0,sEnt=0,sSai=0;
+  det.forEach(function(r){
+    var tipo=String(r.tipo||''), ent=tipo.indexOf('Entrada')===0;
+    var v=(+r.valor)||0; if(ent){sEnt+=v;nEnt++;} else {sSai+=v;nSai++;}
+    var dt=r.data_realizada||r.data_prevista||''; var dtBR=dt?String(dt).slice(0,10).split('-').reverse().join('/'):'—';
+    detRows+='<tr>'
+      +'<td>'+dtBR+'</td>'
+      +'<td><span class="tag '+(ent?'e':'s')+'">'+(ent?'Entrada':'Saída')+'</span></td>'
+      +'<td>'+esc(r.descricao||r.categoria||'—')+'</td>'
+      +'<td>'+esc(r.cliente_fornecedor||'—')+'</td>'
+      +'<td>'+esc(r.categoria||'—')+'</td>'
+      +'<td>'+esc(r.conta||'—')+'</td>'
+      +'<td>'+esc(r.status||'—')+'</td>'
+      +'<td class="r" style="color:'+(ent?'#0e6b31':'#c0392b')+'">'+(ent?'+':'−')+brl(v)+'</td>'
+    +'</tr>';
+  });
+  if(!detRows) detRows='<tr><td colspan="8" style="text-align:center;color:#888">Sem lançamentos neste mês.</td></tr>';
+  var resDet=sEnt-sSai;
+
+  var H='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>DRE '+_DRE_MES[mAtual]+' '+ano+'</title><style>'
+   +'*{margin:0;padding:0;box-sizing:border-box}'
+   +'body{font-family:Arial,Helvetica,sans-serif;color:#3a3a3a;-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+   +'@page{size:A4;margin:12mm 12mm 14mm}'
+   +'.hd{display:flex;align-items:center;gap:12px;border-bottom:3px solid #1aa64d;padding-bottom:8px;margin-bottom:8px}'
+   +'.hd img{height:15mm}'
+   +'.hd .t{font-size:16pt;font-weight:800;color:#0e6b31;line-height:1.15}'
+   +'.hd .t small{display:block;font-size:8.5pt;color:#777;font-weight:600;letter-spacing:.3px}'
+   +'.meta{font-size:9.5pt;color:#555;margin-bottom:2mm}'
+   +'h2.s{font-size:12pt;color:#0e6b31;margin:7mm 0 3mm;border-left:4px solid #1aa64d;padding-left:7px}'
+   +'.dre{width:100%;border-collapse:collapse;font-size:10.5pt}'
+   +'.dre td{padding:2.4mm 3mm;border-bottom:1px solid #e6e6e6}.dre td.r{text-align:right;font-weight:700}'
    +'.dre tr.rec td{background:#0e6b31;color:#fff;font-weight:800}'
-   +'.dre tr.sub td{color:#555;font-size:10pt;border-bottom:1px dashed #eee}'
-   +'.dre tr.neg td{color:#c0392b}'
-   +'.dre tr.tot td{background:#f0f7f2;font-weight:800}'
-   +'.dre tr.res td{background:'+resCor+';color:#fff;font-size:13pt;font-weight:900}'
-   +'.dremes{width:100%;border-collapse:collapse;margin:4mm 0;font-size:10pt}'
-   +'.dremes th{background:#0e6b31;color:#fff;padding:2.5mm 3mm;text-align:right}.dremes th:first-child{text-align:left}'
-   +'.dremes td{padding:2.5mm 3mm;border-bottom:1px solid #e6e6e6}.dremes td.r{text-align:right}'
+   +'.dre tr.sub td{color:#555;font-size:9.5pt;border-bottom:1px dashed #eee}'
+   +'.dre tr.neg td{color:#c0392b}.dre tr.tot td{background:#f0f7f2;font-weight:800}'
+   +'.dre tr.res td{background:'+resCor+';color:#fff;font-size:12.5pt;font-weight:900}'
+   +'.det{width:100%;border-collapse:collapse;font-size:8.6pt}'
+   +'.det th{background:#0e6b31;color:#fff;padding:2mm;text-align:left;font-size:8.4pt}'
+   +'.det th.r,.det td.r{text-align:right}'
+   +'.det td{padding:1.7mm 2mm;border-bottom:1px solid #ececec;vertical-align:top}'
+   +'.det tbody tr:nth-child(even) td{background:#f6faf7}'
+   +'.det tr{page-break-inside:avoid}'
+   +'.det thead{display:table-header-group}'
+   +'.tag{display:inline-block;padding:1px 5px;border-radius:8px;font-size:7.4pt;font-weight:700;color:#fff;white-space:nowrap}'
+   +'.tag.e{background:#1aa64d}.tag.s{background:#c0392b}'
+   +'.det tr.sum td{background:#eef5f0;font-weight:800;border-top:2px solid #0e6b31}'
+   +'.dremes{width:100%;border-collapse:collapse;font-size:9.5pt}'
+   +'.dremes th{background:#0e6b31;color:#fff;padding:2mm;text-align:right}.dremes th:first-child{text-align:left}'
+   +'.dremes td{padding:2mm;border-bottom:1px solid #e6e6e6}.dremes td.r{text-align:right}'
    +'.dremes tr.tot td{background:#0e6b31;color:#fff;font-weight:800}'
+   +'.dremes thead{display:table-header-group}.dremes tr{page-break-inside:avoid}'
+   +'.foot{margin-top:8mm;font-size:8pt;color:#888;border-top:1px solid #ddd;padding-top:3mm;text-align:center}'
    +'</style></head><body>';
-  H+='<div class="page">'+_HEAD()+'<div class="sec">';
-  H+='<div class="ic"><div class="ico">&#128202;</div><h2>DRE — DEMONSTRAÇÃO DO <b>RESULTADO</b></h2><div class="ln"></div></div>';
-  H+='<div class="fields"><div class="f">PERÍODO: '+_DRE_MES[mAtual]+'/'+ano+' (até '+dd+'/'+mm+'/'+ano+')</div><div class="f">REGIME: competência (vendas do mês)</div></div>';
+  H+='<div class="hd"><img src="'+ASSETS.logo+'"><div class="t">DRE — Demonstração do Resultado<small>SUDOESTE SOLUÇÕES ELÉTRICAS LTDA · UNIÃO SOLAR</small></div></div>';
+  H+='<div class="meta"><b>Período:</b> '+_DRE_MES[mAtual]+'/'+ano+' &nbsp;·&nbsp; <b>Regime:</b> competência (lançamentos do mês) &nbsp;·&nbsp; <b>Emitido em:</b> '+dd+'/'+mm+'/'+realAno+'</div>';
+  H+='<h2 class="s">Resumo do resultado</h2>';
   H+='<table class="dre">';
   H+=linha('RECEITA BRUTA (vendas do mês)',cur.vendas,'rec');
   H+=linha('&nbsp;&nbsp;• Já recebido',cur.recebido,'sub');
@@ -1426,11 +1503,18 @@ function buildDRE(rows){
   H+=linha('(&minus;) Custos fixos (internet, condomínio, etc.)',cur.custoFix,'neg');
   H+=linha('(=) RESULTADO DO PERÍODO — '+(resultado>=0?'Lucro':'Prejuízo'),resultado,'res');
   H+='</table>';
-  H+='<div class="ic" style="margin-top:6mm"><div class="ico">&#128197;</div><h2>EVOLUÇÃO <b>MENSAL</b> '+ano+'</h2><div class="ln"></div></div>';
-  H+='<table class="dremes"><tr><th>Mês</th><th>Vendas</th><th>Custos var.</th><th>Custos fixos</th><th>Resultado</th></tr>'+mesRows;
-  H+='<tr class="tot"><td>TOTAL '+ano+'</td><td class="r">'+brl(tV)+'</td><td class="r">'+brl(tCV)+'</td><td class="r">'+brl(tCF)+'</td><td class="r">'+brl(tR)+'</td></tr></table>';
-  H+='<p style="font-size:8.6pt;color:#777;margin-top:3mm">* Receita = vendas lançadas no mês (recebidas + a receber). Custos = saídas pagas, separadas em variáveis e fixas. O mês atual considera os lançamentos feitos até a data acima.</p>';
-  H+='</div>'+_FOOT+'</div></body></html>';
+  H+='<h2 class="s">Detalhamento — lançamento a lançamento ('+det.length+')</h2>';
+  H+='<table class="det"><thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th>Cliente/Fornecedor</th><th>Categoria</th><th>Conta</th><th>Status</th><th class="r">Valor</th></tr></thead><tbody>';
+  H+=detRows;
+  H+='<tr class="sum"><td colspan="7">TOTAL ENTRADAS ('+nEnt+' lançamentos)</td><td class="r" style="color:#0e6b31">+'+brl(sEnt)+'</td></tr>';
+  H+='<tr class="sum"><td colspan="7">TOTAL SAÍDAS ('+nSai+' lançamentos)</td><td class="r" style="color:#c0392b">&minus;'+brl(sSai)+'</td></tr>';
+  H+='<tr class="sum"><td colspan="7">RESULTADO (entradas &minus; saídas)</td><td class="r" style="color:'+(resDet>=0?'#0e6b31':'#c0392b')+'">'+brl(resDet)+'</td></tr>';
+  H+='</tbody></table>';
+  H+='<h2 class="s">Evolução mensal '+ano+'</h2>';
+  H+='<table class="dremes"><thead><tr><th>Mês</th><th>Vendas</th><th>Custos var.</th><th>Custos fixos</th><th>Resultado</th></tr></thead><tbody>'+mesRows;
+  H+='<tr class="tot"><td>TOTAL '+ano+'</td><td class="r">'+brl(tV)+'</td><td class="r">'+brl(tCV)+'</td><td class="r">'+brl(tCF)+'</td><td class="r">'+brl(tR)+'</td></tr></tbody></table>';
+  H+='<div class="foot">Receita = vendas lançadas no mês (recebidas + a receber). Custos = saídas do mês, separadas em variáveis e fixas. O detalhamento lista todas as transações do mês selecionado. · AV. JURACY MAGALHÃES, 3340 A, SALA 508 — VITÓRIA DA CONQUISTA/BA · (77) 99975-0486</div>';
+  H+='</body></html>';
   return H;
 }
 async function gerarDRE(){
@@ -1438,7 +1522,9 @@ async function gerarDRE(){
   try{
     var res=await sb.from('financeiro').select('*');
     var rows=(res&&res.data)||[];
-    var html=buildDRE(rows);
+    var sm,sa; var _sel=($('finMesSel')&&$('finMesSel').value)||'';
+    if(/^\d{4}-\d{2}$/.test(_sel)){ sa=parseInt(_sel.slice(0,4),10); sm=parseInt(_sel.slice(5,7),10); }
+    var html=buildDRE(rows, sm, sa);
     var w=window.open('','_blank');
     if(!w){ alert('Permita pop-ups (janelas) para abrir a DRE.'); if(b)b.disabled=false; return; }
     w.document.open(); w.document.write(html); w.document.close();
@@ -1700,6 +1786,71 @@ function _htmlContratoServico(d){
   return h;
 }
 
+/* ================= ORDEM DE SERVIÇO (OS) ================= */
+function _osNumero(pref,id){
+  var h=new Date(); var y=h.getFullYear();
+  var mm=('0'+(h.getMonth()+1)).slice(-2), dd=('0'+h.getDate()).slice(-2);
+  return (pref||'OS')+'-'+y+mm+dd+(id!=null?('-'+id):'');
+}
+function _htmlOS(d){
+  function b(x){ return (x==null||x==='')?'—':esc(x); }
+  var itens=(d.itens||[]).filter(function(s){return String(s||'').trim();});
+  var itensRows='';
+  if(itens.length){
+    itens.forEach(function(it,i){ itensRows+='<tr><td class="c">'+(i+1)+'</td><td>'+esc(String(it).trim())+'</td></tr>'; });
+  } else { itensRows='<tr><td colspan="2" style="text-align:center;color:#999">Sem itens descritos.</td></tr>'; }
+  var hoje=new Date();
+  var dataBR=d.data?String(d.data).slice(0,10).split('-').reverse().join('/'):(('0'+hoje.getDate()).slice(-2)+'/'+('0'+(hoje.getMonth()+1)).slice(-2)+'/'+hoje.getFullYear());
+  var css='*{margin:0;padding:0;box-sizing:border-box}'
+   +"body{font-family:Arial,Helvetica,sans-serif;color:#333;-webkit-print-color-adjust:exact;print-color-adjust:exact}"
+   +'@page{size:A4;margin:12mm 12mm 14mm}'
+   +'.hd{display:flex;align-items:center;gap:12px;border-bottom:3px solid #1aa64d;padding-bottom:8px;margin-bottom:4px}'
+   +'.hd img{height:16mm}'
+   +'.hd .co{font-size:8.6pt;color:#555;line-height:1.35}.hd .co b{color:#0e6b31;font-size:10.5pt}'
+   +'.osbar{display:flex;justify-content:space-between;align-items:flex-end;margin:6mm 0 3mm}'
+   +'.osbar .tt{font-size:18pt;font-weight:900;color:#0e6b31;letter-spacing:.5px}'
+   +'.osbar .tt small{display:block;font-size:9pt;color:#888;font-weight:700;letter-spacing:1px}'
+   +'.osbar .num{text-align:right;font-size:10pt;color:#444}.osbar .num b{font-size:13pt;color:#c0392b;display:block}'
+   +'.blk{border:1px solid #d8e2db;border-radius:6px;padding:4mm;margin:3mm 0}'
+   +'.blk h3{font-size:9.5pt;color:#0e6b31;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2.5mm;border-bottom:1px solid #eee;padding-bottom:1.5mm}'
+   +'.grid{display:flex;flex-wrap:wrap;gap:2mm 6mm}.grid .f{font-size:10pt;color:#444;min-width:45%}.grid .f b{color:#111}'
+   +'table.os{width:100%;border-collapse:collapse;font-size:10pt;margin-top:1mm}'
+   +'table.os th{background:#0e6b31;color:#fff;padding:2.4mm 3mm;text-align:left}table.os th.c,table.os td.c{text-align:center;width:14mm}'
+   +'table.os td{padding:2.4mm 3mm;border-bottom:1px solid #ececec;vertical-align:top}'
+   +'table.os tbody tr:nth-child(even) td{background:#f6faf7}'
+   +'.obs{font-size:9.5pt;color:#555;line-height:1.5;min-height:16mm;white-space:pre-wrap}'
+   +'.sign{display:flex;justify-content:space-around;margin-top:16mm;gap:10mm}'
+   +'.sign .s{flex:1;text-align:center}.sign .ln{border-top:1.5px solid #333;margin-bottom:2mm}'
+   +'.sign .nm{font-weight:700;color:#0e6b31;font-size:9.5pt}.sign .cn{font-size:8pt;color:#888}'
+   +'.foot{margin-top:8mm;font-size:8pt;color:#999;border-top:1px solid #ddd;padding-top:3mm;text-align:center}';
+  var H='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ordem de Serviço '+esc(d.numero||'')+'</title><style>'+css+'</style></head><body>';
+  H+='<div class="hd"><img src="'+ASSETS.logo+'"><div class="co"><b>SUDOESTE SOLUÇÕES ELÉTRICAS LTDA — UNIÃO SOLAR</b><br>CNPJ: 51.045.101/0001-10 · Av. Juracy Magalhães, 3340 A, Sala 508, Felícia<br>Vitória da Conquista – BA · CEP 45.055-902 · (77) 99975-0486</div></div>';
+  H+='<div class="osbar"><div class="tt">ORDEM DE SERVIÇO<small>'+(d.tipo?esc(d.tipo):'SERVIÇO')+'</small></div><div class="num">Nº <b>'+esc(d.numero||'—')+'</b>Data: '+dataBR+'</div></div>';
+  H+='<div class="blk"><h3>Cliente / Local</h3><div class="grid">'
+   +'<div class="f"><b>Cliente:</b> '+b(d.cliente)+'</div>'
+   +'<div class="f"><b>Contato:</b> '+b(d.contato)+'</div>'
+   +'<div class="f" style="min-width:96%"><b>Endereço:</b> '+b(d.endereco)+'</div>'
+   +(d.obra?'<div class="f" style="min-width:96%"><b>Obra/Projeto:</b> '+b(d.obra)+'</div>':'')
+   +(d.protocolo?'<div class="f"><b>Protocolo:</b> '+b(d.protocolo)+'</div>':'')
+   +(d.responsavel?'<div class="f"><b>Responsável:</b> '+b(d.responsavel)+'</div>':'')
+   +'</div></div>';
+  H+='<div class="blk"><h3>Serviços a executar</h3><table class="os"><thead><tr><th class="c">#</th><th>Descrição do serviço</th></tr></thead><tbody>'+itensRows+'</tbody></table></div>';
+  H+='<div class="blk"><h3>Observações</h3><div class="obs">'+(d.obs?esc(d.obs):'—')+'</div></div>';
+  H+='<div class="sign"><div class="s"><div class="ln"></div><div class="nm">UNIÃO SOLAR</div><div class="cn">Responsável técnico</div></div>'
+   +'<div class="s"><div class="ln"></div><div class="nm">'+b(d.cliente)+'</div><div class="cn">Cliente / recebedor</div></div></div>';
+  H+='<div class="foot">Ordem de Serviço emitida por Central União Solar · '+dataBR+' · Filiais: Itamaraju | Porto Seguro | Teixeira de Freitas | Vitória da Conquista</div>';
+  H+='</body></html>';
+  return H;
+}
+function _abrirOS(d,st){
+  var html=_htmlOS(d);
+  var w=window.open('','_blank');
+  if(!w){ if(st) stMsg(st,'err','Permita pop-ups (janelas) para abrir a OS.'); else alert('Permita pop-ups para abrir a OS.'); return false; }
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(function(){ try{w.focus();w.print();}catch(e){} },600);
+  return true;
+}
+
 function _contratoServicoDados(obra, equipe, valorServ, endInst){
   var mat=String(obra.material||'').split(' | ');
   var hoje=new Date();
@@ -1738,6 +1889,44 @@ async function salvarEquipeObra(o){
     o.equipe_id=eid?+eid:null; o.valor_servico=(+$('obraValServ').value)||null; o.endereco_instalacao=$('obraEndInst').value.trim();
     stMsg(st,'ok','✓ Equipe e valor salvos na obra.'); carregarObras();
   }catch(e){ stMsg(st,'err','Erro: '+(e&&e.message||e)); }
+}
+function initCoelbaObra(o){
+  var sel=$('obraCoelba'); if(!sel) return;
+  if(o.coelba) sel.value=(String(o.coelba).toLowerCase().indexOf('sim')===0?'Sim':'Não');
+  if($('obraCoelbaData')) $('obraCoelbaData').value=o.data_coelba?String(o.data_coelba).slice(0,10):'';
+  if($('obraCoelbaServ')) $('obraCoelbaServ').value=o.servico_coelba||'';
+  function toggle(){ var w=$('coelbaWrap'); if(w) w.style.display=(sel.value==='Sim')?'block':'none'; }
+  sel.onchange=toggle; toggle();
+  var bs=$('btnSalvarCoelba'); if(bs) bs.onclick=function(){salvarCoelbaObra(o);};
+  var bg=$('btnGerarOSCoelba'); if(bg) bg.onclick=function(){gerarOSCoelba(o);};
+}
+async function salvarCoelbaObra(o){
+  var st=$('coelbaStatus'); stMsg(st,'wait','Salvando…');
+  var tem=$('obraCoelba').value==='Sim';
+  var patch={ coelba:$('obraCoelba').value, servico_coelba:tem?($('obraCoelbaServ').value.trim()||null):null, data_coelba:($('obraCoelbaData').value||null) };
+  try{
+    var r=await sb.from('obras').update(patch).eq('id',o.id);
+    if(r&&r.error) throw r.error;
+    o.coelba=patch.coelba; o.servico_coelba=patch.servico_coelba; o.data_coelba=patch.data_coelba;
+    stMsg(st,'ok','✓ Serviços COELBA salvos.');
+  }catch(e){
+    var msg=(e&&e.message||e)+'';
+    if(/column|coelba|schema|does not exist/i.test(msg)) stMsg(st,'err','Salve as colunas COELBA no banco (rode o SQL enviado): '+msg);
+    else stMsg(st,'err','Erro: '+msg);
+  }
+}
+function gerarOSCoelba(o){
+  var st=$('coelbaStatus');
+  var serv=($('obraCoelbaServ').value||'').trim();
+  if(!serv){ stMsg(st,'err','Descreva os serviços de COELBA (um por linha) antes de gerar a OS.'); return; }
+  var d={
+    numero:_osNumero('OS-COELBA',o.id), tipo:'SERVIÇOS COELBA',
+    data:$('obraCoelbaData').value||hojeISO(),
+    cliente:o.cliente||'', endereco:o.endereco_instalacao||o.endereco||'', contato:o.contato||'',
+    obra:(o.projeto?'Projeto '+o.projeto:'')+(o.valor?(o.projeto?' · ':'')+brl(o.valor):''),
+    itens:serv.split(/\r?\n/), obs:'Serviços a executar junto à concessionária COELBA para esta unidade.'
+  };
+  if(_abrirOS(d,st)) stMsg(st,'ok','📄 OS de serviços COELBA gerada.');
 }
 function gerarContratoServico(o){
   var st=$('ctServStatus');
@@ -2248,6 +2437,52 @@ async function salvarUsuario(){
   var b=document.getElementById('btnUserSalvar'); if(b) b.onclick=salvarUsuario;
   var l=document.getElementById('btnUserLimpar'); if(l) l.onclick=_limparUserForm;
   var r=document.getElementById('btnUserRefresh'); if(r) r.onclick=carregarUsuarios;
+})();
+
+/* ================= Editar lançamento do financeiro ================= */
+var _finCache=[];
+function editarFin(r){
+  document.getElementById('fe_id').value=r.id;
+  document.getElementById('fe_tipo').value=(String(r.tipo||'').indexOf('Sa')===0)?'Saída':'Entrada';
+  document.getElementById('fe_status').value=r.status||'Recebido';
+  document.getElementById('fe_desc').value=r.descricao||'';
+  document.getElementById('fe_onde').value=r.cliente_fornecedor||'';
+  document.getElementById('fe_valor').value=(r.valor!=null?r.valor:'');
+  var mm=r.mes?('0'+r.mes).slice(-2):''; document.getElementById('fe_comp').value=(r.ano&&r.mes)?(r.ano+'-'+mm):'';
+  document.getElementById('fe_cat').value=r.categoria||'';
+  document.getElementById('fe_conta').value=r.conta||'';
+  document.getElementById('fe_dreal').value=r.data_realizada?String(r.data_realizada).slice(0,10):'';
+  document.getElementById('fe_dprev').value=r.data_prevista?String(r.data_prevista).slice(0,10):'';
+  document.getElementById('fe_boleto').value=r.boleto||'';
+  document.getElementById('feStatus').className='st';document.getElementById('feStatus').textContent='';
+  document.getElementById('finEditModal').style.display='flex';
+}
+function _fecharFinEdit(){ document.getElementById('finEditModal').style.display='none'; }
+async function _salvarFinEdit(){
+  var st=document.getElementById('feStatus');
+  var id=document.getElementById('fe_id').value; if(!id) return;
+  var comp=document.getElementById('fe_comp').value; var mes=null,ano=null;
+  if(/^\d{4}-\d{2}$/.test(comp)){ ano=parseInt(comp.slice(0,4),10); mes=parseInt(comp.slice(5,7),10); }
+  var patch={
+    tipo:document.getElementById('fe_tipo').value,
+    status:document.getElementById('fe_status').value,
+    descricao:document.getElementById('fe_desc').value.trim()||null,
+    cliente_fornecedor:document.getElementById('fe_onde').value.trim()||null,
+    valor:(+document.getElementById('fe_valor').value)||0,
+    categoria:document.getElementById('fe_cat').value||null,
+    conta:document.getElementById('fe_conta').value.trim()||null,
+    data_realizada:document.getElementById('fe_dreal').value||null,
+    data_prevista:document.getElementById('fe_dprev').value||null,
+    boleto:document.getElementById('fe_boleto').value.trim()||null,
+    mes:mes, ano:ano
+  };
+  stMsg(st,'wait','Salvando…');
+  try{ await sb.from('financeiro').update(patch).eq('id',id); stMsg(st,'ok','✓ Salvo.'); _fecharFinEdit(); carregarFin(); }
+  catch(e){ stMsg(st,'err','Erro: '+(e&&e.message||e)); }
+}
+(function(){
+  var s=document.getElementById('feSalvar'); if(s) s.onclick=_salvarFinEdit;
+  var f=document.getElementById('feFechar'); if(f) f.onclick=_fecharFinEdit;
 })();
 </script>
 </body></html>
