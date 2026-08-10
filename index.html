@@ -17,6 +17,14 @@ html,body{font-family:'Segoe UI',Arial,Helvetica,sans-serif;color:var(--ink);bac
 .navitem:hover{background:rgba(255,255,255,.09)}
 .navitem.active{background:rgba(255,255,255,.16)}
 .navitem.active::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:4px;background:var(--o);border-radius:0 4px 4px 0}
+.navgrp{margin-bottom:4px}
+.navgrp-head{display:flex;align-items:center;gap:8px;padding:9px 12px;color:#bfe0c9;font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;cursor:pointer;border-radius:9px;user-select:none}
+.navgrp-head:hover{background:rgba(255,255,255,.07)}
+.navgrp-head .cr{margin-left:auto;font-size:11px;opacity:.85;transition:transform .15s}
+.navgrp-body{margin:1px 0 3px;overflow:hidden}
+.navgrp-body .navitem{margin-left:5px;font-size:13.5px}
+.navgrp.collapsed .navgrp-body{display:none}
+.navgrp.collapsed .navgrp-head .cr{transform:rotate(-90deg)}
 .sfoot{padding:12px 16px;font-size:10.5px;color:rgba(255,255,255,.6);border-top:1px solid rgba(255,255,255,.12)}
 .sfoot .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#8fd6a6;margin-right:5px}
 .sfoot .dot.off{background:#e0664f}
@@ -88,16 +96,36 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
  <aside class="sidebar">
   <div class="brand"><div class="n">UNIÃO SOLAR</div><div class="s">Central de Operações</div></div>
   <nav class="nav">
-   <div class="navitem active" data-view="financeiro"><span class="ic">💰</span> Financeiro</div>
-   <div class="navitem" data-view="orcamento"><span class="ic">📄</span> Orçamento</div>
-   <div class="navitem" data-view="obra"><span class="ic">🔧</span> Obras</div>
-   <div class="navitem" data-view="contratos"><span class="ic">📑</span> Contratos</div>
-   <div class="navitem" data-view="dados"><span class="ic">📁</span> Dados</div>
-   <div class="navitem" data-view="posvenda"><span class="ic">🤝</span> Pós-venda</div>
-   <div class="navitem" data-view="marketing"><span class="ic">📣</span> Marketing</div>
-   <div class="navitem" data-view="manutencoes"><span class="ic">🧰</span> Manutenções</div>
-   <div class="navitem" data-view="equipes"><span class="ic">👷</span> Equipes</div>
-   <div class="navitem" data-view="usuarios"><span class="ic">🔑</span> Usuários</div>
+   <div class="navgrp" data-grp="gestao">
+    <div class="navgrp-head">💼 Gestão <span class="cr">▾</span></div>
+    <div class="navgrp-body">
+     <div class="navitem active" data-view="financeiro"><span class="ic">💰</span> Financeiro</div>
+     <div class="navitem" data-view="usuarios"><span class="ic">🔑</span> Usuários</div>
+    </div>
+   </div>
+   <div class="navgrp" data-grp="comercial">
+    <div class="navgrp-head">🧲 Comercial <span class="cr">▾</span></div>
+    <div class="navgrp-body">
+     <div class="navitem" data-view="orcamento"><span class="ic">📄</span> Orçamento</div>
+     <div class="navitem" data-view="contratos"><span class="ic">📑</span> Contratos</div>
+     <div class="navitem" data-view="marketing"><span class="ic">📣</span> Marketing</div>
+    </div>
+   </div>
+   <div class="navgrp" data-grp="operacoes">
+    <div class="navgrp-head">🔧 Obras &amp; Equipe <span class="cr">▾</span></div>
+    <div class="navgrp-body">
+     <div class="navitem" data-view="obra"><span class="ic">🔧</span> Obras</div>
+     <div class="navitem" data-view="equipes"><span class="ic">👷</span> Equipes</div>
+     <div class="navitem" data-view="manutencoes"><span class="ic">🧰</span> Manutenções</div>
+    </div>
+   </div>
+   <div class="navgrp" data-grp="clientes">
+    <div class="navgrp-head">🤝 Clientes <span class="cr">▾</span></div>
+    <div class="navgrp-body">
+     <div class="navitem" data-view="dados"><span class="ic">📁</span> Dados</div>
+     <div class="navitem" data-view="posvenda"><span class="ic">🤝</span> Pós-venda</div>
+    </div>
+   </div>
   </nav>
   <div class="sfoot"><span id="quemSou" style="display:block;color:#eafaf0;font-weight:700;margin-bottom:2px"></span><button id="btnSair" style="display:none;background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer;margin-bottom:8px">↩ Sair</button><br><span class="dot" id="connDot"></span><span id="connTxt">conectando…</span></div>
  </aside>
@@ -359,6 +387,21 @@ function hojeISO(){return new Date().toISOString().slice(0,10);}
 function dBR(iso){if(!iso)return '';var p=String(iso).slice(0,10).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:iso;}
 function mesAno(iso){var p=String(iso||hojeISO()).slice(0,10).split('-');return{mes:parseInt(p[1],10),ano:parseInt(p[0],10)};}
 function stMsg(el,cls,msg){el.className='st show '+cls;el.textContent=msg;}
+/* ===== Menu lateral agrupado (acordeão) ===== */
+function _navAbrirGrupo(grp){ document.querySelectorAll('.navgrp').forEach(function(g){ g.classList.toggle('collapsed', g!==grp); }); }
+function _sincronizarNavGroups(){
+  // esconde grupos cujos itens estão todos ocultos por permissão
+  document.querySelectorAll('.navgrp').forEach(function(g){
+    var algum=false; g.querySelectorAll('.navitem').forEach(function(n){ if(n.style.display!=='none') algum=true; });
+    g.style.display=algum?'':'none';
+  });
+  // deixa aberto só o grupo do item ativo
+  var ativa=document.querySelector('.navitem.active:not([data-hide])');
+  var grpAtiva=ativa?ativa.closest('.navgrp'):null;
+  if(!grpAtiva){ var gs=document.querySelectorAll('.navgrp'); for(var i=0;i<gs.length;i++){ if(gs[i].style.display!=='none'){ grpAtiva=gs[i]; break; } } }
+  document.querySelectorAll('.navgrp').forEach(function(g){ g.classList.toggle('collapsed', g!==grpAtiva); });
+}
+(function(){ document.querySelectorAll('.navgrp-head').forEach(function(h){ h.onclick=function(){ var g=h.closest('.navgrp'); if(g.classList.contains('collapsed')) _navAbrirGrupo(g); else g.classList.add('collapsed'); }; }); })();
 document.querySelectorAll('.navitem').forEach(function(n){n.onclick=function(){
   document.querySelectorAll('.navitem').forEach(function(x){x.classList.remove('active');});
   document.querySelectorAll('.view').forEach(function(x){x.classList.remove('active');});
@@ -2506,6 +2549,7 @@ function aplicarPermissoes(u){
     var first=null; document.querySelectorAll('.navitem').forEach(function(n){ if(!first && !n.getAttribute('data-hide')) first=n; });
     if(first){ document.querySelectorAll('.navitem').forEach(function(x){x.classList.remove('active');}); document.querySelectorAll('.view').forEach(function(x){x.classList.remove('active');}); first.classList.add('active'); var sec=document.getElementById(first.dataset.view); if(sec)sec.classList.add('active'); }
   }
+  if(typeof _sincronizarNavGroups==='function') _sincronizarNavGroups();
 }
 
 /* ---------- Gestão de usuários (aba Usuários) ---------- */
