@@ -222,6 +222,17 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
      <div class="actions"><button class="btn primary" id="btnPos">🎫 Registrar chamado</button></div><div id="stPos" class="st"></div></div>
     <div class="card"><h2>📋 Chamados <button class="btn ghost sm" id="btnPosRefresh" style="float:right">↻</button></h2><div id="listaPos"><div class="hint">carregando…</div></div></div>
    </div>
+   <div class="card"><h2>🔎 Análise técnica de geração (conta do cliente)</h2>
+    <div class="vsub" style="margin:0 0 10px">Preencha com os dados da conta COELBA e do monitoramento. O sistema calcula consumo registrado, faturado, instantâneo, consumo real e o desempenho, e gera a análise em PDF para enviar ao cliente.</div>
+    <div class="frow"><label>Titular / Cliente</label><input id="ag_titular" placeholder="Ex.: JONCAR VEÍCULOS LTDA"></div>
+    <div class="frow two"><div><label>Período de leitura — início</label><input id="ag_dini" type="date"></div><div><label>Período de leitura — fim</label><input id="ag_dfim" type="date"></div></div>
+    <div class="frow two"><div><label>Leitura anterior (medidor)</label><input id="ag_lant" type="number" step="0.01" placeholder="24033"></div><div><label>Leitura atual (medidor)</label><input id="ag_latual" type="number" step="0.01" placeholder="25071"></div></div>
+    <div class="frow two"><div><label>Energia injetada / compensada — função CAT (kWh)</label><input id="ag_inj" type="text" inputmode="decimal" placeholder="520"></div><div><label>Geração esperada no período (kWh)</label><input id="ag_esp" type="text" inputmode="decimal" placeholder="1571,47"></div></div>
+    <div class="frow"><label>Geração real — uma usina/monitoramento por linha (kWh)</label><textarea id="ag_ger" rows="3" placeholder="336,44&#10;696,7"></textarea></div>
+    <div id="ag_res" class="hint" style="background:#f4f8f5;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0;line-height:1.7"></div>
+    <div class="actions"><button class="btn primary" id="btnAgGerar">📄 Gerar análise (PDF)</button><button class="btn ghost" id="btnAgLimpar">Limpar</button></div>
+    <div id="stAg" class="st"></div>
+   </div>
   </section>
 
   <!-- ===================== MARKETING ===================== -->
@@ -561,6 +572,104 @@ async function carregarPos(){const {data,error}=await sb.from('posvenda').select
     d.querySelector('.bt').onclick=async function(){await sb.from('posvenda').update({status:concl?'Aberto':'Concluído'}).eq('id',c.id);carregarPos();};
     d.querySelector('.bx').onclick=async function(){if(!confirm('Excluir o chamado de '+c.cliente+'?'))return;await sb.from('posvenda').delete().eq('id',c.id);carregarPos();};$('listaPos').appendChild(d);});}
 $('btnPosRefresh').onclick=carregarPos;
+
+/* ============ ANÁLISE TÉCNICA DE GERAÇÃO (pós-venda) ============ */
+function _numBR(s){s=String(s==null?'':s).trim();if(!s)return 0;if(s.indexOf(',')>-1)s=s.replace(/\./g,'').replace(',','.');return parseFloat(s)||0;}
+function _kwh(n){return (Math.round(((+n)||0)*100)/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' kWh';}
+function _pct1(n){return (Math.round(((+n)||0)*10)/10).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';}
+function _dBRr(iso){if(!iso)return '—';var p=String(iso).slice(0,10).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:iso;}
+function _agGeracoes(){return String(($('ag_ger')&&$('ag_ger').value)||'').split(/\r?\n/).map(_numBR).filter(function(x){return x>0;});}
+function _agCalc(){
+  var lant=parseFloat($('ag_lant').value)||0, latual=parseFloat($('ag_latual').value)||0;
+  var reg=latual-lant, inj=_numBR($('ag_inj').value);
+  var gerList=_agGeracoes(), ger=gerList.reduce(function(a,b){return a+b;},0);
+  var fat=reg-inj, inst=ger-inj, real=inst+reg, esp=_numBR($('ag_esp').value);
+  var desemp=esp>0?((ger-esp)/esp*100):0;
+  return {lant:lant,latual:latual,reg:reg,inj:inj,gerList:gerList,ger:ger,fat:fat,inst:inst,real:real,esp:esp,desemp:desemp};
+}
+function _agPreview(){
+  var c=_agCalc(); var el=$('ag_res'); if(!el)return;
+  var sinal=c.desemp<0?'abaixo':(c.desemp>0?'acima':'em linha');
+  el.innerHTML='<b>Prévia do cálculo</b><br>'
+    +'Consumo registrado (leitura atual − anterior) = <b>'+_kwh(c.reg)+'</b><br>'
+    +'Consumo faturado (registrado − injetado) = '+_kwh(c.fat)+'<br>'
+    +'Geração real (soma) = <b>'+_kwh(c.ger)+'</b>'+(c.gerList.length>1?' &nbsp;<span style="color:#888">('+c.gerList.map(_kwh).join(' + ')+')</span>':'')+'<br>'
+    +'Consumo instantâneo (geração − injetado) = '+_kwh(c.inst)+'<br>'
+    +'<b>Consumo real (instantâneo + registrado) = '+_kwh(c.real)+'</b><br>'
+    +'Desempenho vs. esperado = '+(c.esp>0?((c.desemp>0?'+':'')+_pct1(c.desemp)+' ('+sinal+' do esperado)'):'<span style="color:#888">informe a geração esperada</span>');
+}
+function _htmlAnaliseGeracao(d){
+  var c=d.calc;
+  var desAbs=Math.abs(Math.round(c.desemp));
+  var desTxt=(c.ger<c.esp)?('aproximadamente '+desAbs+'% abaixo do esperado'):((c.ger>c.esp)?('aproximadamente '+desAbs+'% acima do esperado'):'em linha com o esperado');
+  var css='*{margin:0;padding:0;box-sizing:border-box}'
+   +"body{font-family:Arial,Helvetica,sans-serif;color:#333;-webkit-print-color-adjust:exact;print-color-adjust:exact}"
+   +'@page{size:A4;margin:12mm 12mm 14mm}'
+   +'.hd{display:flex;align-items:center;gap:12px;border-bottom:3px solid #1aa64d;padding-bottom:8px;margin-bottom:4px}'
+   +'.hd img{height:16mm}.hd .co{font-size:8.6pt;color:#555;line-height:1.35}.hd .co b{color:#0e6b31;font-size:10.5pt}'
+   +'.tt{font-size:16pt;font-weight:900;color:#0e6b31;text-align:center;margin:6mm 0 1mm;letter-spacing:.3px}'
+   +'.sub{text-align:center;color:#666;font-size:9.5pt;margin-bottom:4mm}'
+   +'.meta{font-size:10pt;color:#444;margin:2mm 0 4mm}.meta b{color:#111}'
+   +'h2.s{font-size:11pt;color:#0e6b31;margin:6mm 0 2.5mm;border-left:4px solid #1aa64d;padding-left:7px;text-transform:uppercase;letter-spacing:.4px}'
+   +'table.res{width:100%;border-collapse:collapse;font-size:9.5pt;margin-top:1mm}'
+   +'table.res th{background:#0e6b31;color:#fff;padding:2.2mm 2mm;text-align:center;font-size:8.6pt}'
+   +'table.res td{padding:2.4mm 2mm;border:1px solid #dfeee5;text-align:center}'
+   +'table.res .grp{background:#e8f4ec;color:#0e6b31;font-weight:800;text-transform:uppercase;font-size:8.2pt}'
+   +'table.res .big{font-weight:800;font-size:11pt;color:#0e6b31}'
+   +'table.calc{width:100%;border-collapse:collapse;font-size:9.5pt}'
+   +'table.calc td{padding:2.2mm 3mm;border-bottom:1px solid #eee}table.calc td.v{text-align:right;font-weight:700;white-space:nowrap}'
+   +'p.n{font-size:10.5pt;line-height:1.6;text-align:justify;margin:2.5mm 0}'
+   +'.concl{background:#f4f8f5;border:1px solid #d8e8de;border-left:4px solid #1aa64d;border-radius:6px;padding:4mm;font-size:10.5pt;line-height:1.6;text-align:justify;margin-top:3mm}'
+   +'.foot{margin-top:8mm;font-size:8pt;color:#999;border-top:1px solid #ddd;padding-top:3mm;text-align:center}';
+  var H='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Análise de Geração — '+esc(d.titular)+'</title><style>'+css+'</style></head><body>';
+  H+='<div class="hd"><img src="'+ASSETS.logo+'"><div class="co"><b>SUDOESTE SOLUÇÕES ELÉTRICAS LTDA — UNIÃO SOLAR</b><br>CNPJ: 51.045.101/0001-10 · Av. Juracy Magalhães, 3340 A, Sala 508, Felícia<br>Vitória da Conquista – BA · (77) 99975-0486</div></div>';
+  H+='<div class="tt">ANÁLISE TÉCNICA DE GERAÇÃO FOTOVOLTAICA</div>';
+  H+='<div class="sub">Verificação de desempenho da usina e consumo da unidade consumidora</div>';
+  H+='<div class="meta"><b>Titular:</b> '+esc(d.titular)+'<br><b>Período de leitura da unidade geradora:</b> '+_dBRr(d.dini)+' a '+_dBRr(d.dfim)+'</div>';
+  H+='<h2 class="s">Resumo dos dados</h2>';
+  H+='<table class="res"><tr><td class="grp" colspan="3">Geração (kWh)</td><td class="grp" colspan="3">Consumo (kWh)</td></tr>'
+   +'<tr><th>Real</th><th>Esperado</th><th>Injetado</th><th>Registrado (ativa)</th><th>Instantâneo</th><th>Real</th></tr>'
+   +'<tr><td class="big">'+_kwh(c.ger).replace(' kWh','')+'</td><td>'+(c.esp>0?_kwh(c.esp).replace(' kWh',''):'—')+'</td><td>'+_kwh(c.inj).replace(' kWh','')+'</td>'
+   +'<td>'+_kwh(c.reg).replace(' kWh','')+'</td><td>'+_kwh(c.inst).replace(' kWh','')+'</td><td class="big">'+_kwh(c.real).replace(' kWh','')+'</td></tr></table>';
+  H+='<h2 class="s">Análise</h2>';
+  if(c.esp>0){ H+='<p class="n">A energia total gerada no período foi de <b>'+_kwh(c.ger)+'</b>, enquanto a geração prevista para o mesmo período era de <b>'+_kwh(c.esp)+'</b>, representando um desempenho <b>'+desTxt+'</b>.</p>'; }
+  else { H+='<p class="n">A energia total gerada no período foi de <b>'+_kwh(c.ger)+'</b>.</p>'; }
+  H+='<p class="n">A energia injetada na rede de distribuição foi de <b>'+_kwh(c.inj)+'</b>.</p>';
+  H+='<p class="n">O consumo real da unidade consumidora foi de <b>'+_kwh(c.real)+'</b>, obtido pela soma da energia registrada pelo medidor ('+_kwh(c.reg)+') com o consumo instantâneo ('+_kwh(c.inst)+').</p>';
+  H+='<h2 class="s">Memória de cálculo</h2><table class="calc">';
+  H+='<tr><td>Consumo registrado = leitura atual ('+_kwh(c.latual).replace(' kWh','')+') − leitura anterior ('+_kwh(c.lant).replace(' kWh','')+')</td><td class="v">'+_kwh(c.reg)+'</td></tr>';
+  H+='<tr><td>Energia injetada / compensada (função CAT)</td><td class="v">'+_kwh(c.inj)+'</td></tr>';
+  H+='<tr><td>Consumo faturado = registrado − injetado</td><td class="v">'+_kwh(c.fat)+'</td></tr>';
+  H+='<tr><td>Geração real'+(c.gerList.length>1?' = '+c.gerList.map(function(x){return _kwh(x).replace(' kWh','');}).join(' + '):'')+'</td><td class="v">'+_kwh(c.ger)+'</td></tr>';
+  H+='<tr><td>Consumo instantâneo = geração − injetado</td><td class="v">'+_kwh(c.inst)+'</td></tr>';
+  H+='<tr><td><b>Consumo real = instantâneo + registrado</b></td><td class="v">'+_kwh(c.real)+'</td></tr>';
+  if(c.esp>0) H+='<tr><td>Geração esperada no período · desempenho</td><td class="v">'+_kwh(c.esp)+' · '+(c.desemp>0?'+':'')+_pct1(c.desemp)+'</td></tr>';
+  H+='</table>';
+  var pa=(c.esp>0)?('a geração da usina ficou '+(c.ger<c.esp?'abaixo da estimativa prevista':(c.ger>c.esp?'acima da estimativa prevista':'em linha com a estimativa prevista'))+' para o período'):('a geração da usina foi de '+_kwh(c.ger)+' no período');
+  var pb=(c.real>c.ger)?('O consumo da unidade consumidora foi superior à energia gerada, tornando necessária a utilização de energia da rede elétrica para suprir a demanda.')
+        :(c.real<c.ger?('O consumo da unidade consumidora foi inferior à energia gerada, resultando em excedente injetado na rede sob a forma de créditos de energia.')
+        :('O consumo da unidade consumidora praticamente igualou a energia gerada no período.'));
+  H+='<div class="concl"><b>Conclusão:</b> No período analisado, '+pa+'. '+pb+'</div>';
+  H+='<div class="foot">Análise emitida por Central União Solar · '+_dBRr(hojeISO())+' · Documento técnico de acompanhamento pós-venda</div>';
+  H+='</body></html>';
+  return H;
+}
+function gerarAnaliseGer(){
+  var st=$('stAg'), c=_agCalc();
+  if(!(c.reg>0)){ stMsg(st,'err','Confira as leituras: a leitura atual precisa ser maior que a anterior.'); return; }
+  if(!(c.ger>0)){ stMsg(st,'err','Informe a geração real (ao menos uma usina/monitoramento).'); return; }
+  var d={ titular:($('ag_titular').value.trim()||'—'), dini:$('ag_dini').value, dfim:$('ag_dfim').value, calc:c };
+  var html=_htmlAnaliseGeracao(d);
+  var w=window.open('','_blank'); if(!w){ stMsg(st,'err','Permita pop-ups (janelas) para abrir a análise.'); return; }
+  w.document.open(); w.document.write(html); w.document.close(); setTimeout(function(){try{w.focus();w.print();}catch(e){}},600);
+  stMsg(st,'ok','📄 Análise técnica de geração gerada.');
+}
+(function(){
+  ['ag_lant','ag_latual','ag_inj','ag_esp','ag_ger'].forEach(function(id){var el=$(id);if(el)el.addEventListener('input',_agPreview);});
+  var g=$('btnAgGerar'); if(g) g.onclick=gerarAnaliseGer;
+  var l=$('btnAgLimpar'); if(l) l.onclick=function(){['ag_titular','ag_lant','ag_latual','ag_inj','ag_esp','ag_ger'].forEach(function(id){if($(id))$(id).value='';});if($('stAg'))$('stAg').className='st';_agPreview();};
+  _agPreview();
+})();
 
 /* ==================== MARKETING ==================== */
 async function carregarMkt(){const board=$('mktBoard');board.innerHTML='<div class="hint">carregando…</div>';
