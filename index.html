@@ -226,7 +226,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
      <div class="frow"><label>Equipamentos (um por linha)</label><textarea id="ct2_equip" style="min-height:80px" placeholder="8 MODULO BIFACIAL 620W...&#10;1 INVERSOR 6KW SOFAR..."></textarea></div>
      <div class="frow"><label>Data do contrato</label><input id="ct2_data" type="date"></div>
      <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:6px 0 10px;cursor:pointer"><input type="checkbox" id="ct2_reg" style="width:auto"> Registrar no sistema (cria a obra, lança no financeiro e move o cliente para "Novo Cliente" no funil)</label>
-     <div class="actions"><button class="btn primary" id="btnCt2Gerar">📄 Gerar Contrato PDF</button><button class="btn ghost" id="btnCt2Editar">✏️ Editar e Gerar</button><button class="btn ok" id="btnCt2Proc">📄 Gerar Procuração PDF</button></div><div id="ct2Status" class="st"></div></div>
+     <div class="actions"><button class="btn primary" id="btnCt2Gerar">📄 Gerar Contrato PDF</button><button class="btn ghost" id="btnCt2Editar">✏️ Editar e Gerar</button><button class="btn ok" id="btnCt2Proc">📄 Gerar Procuração PDF</button><button class="btn ghost" id="btnCt2ProcEditar">✏️ Editar Procuração</button></div><div id="ct2Status" class="st"></div></div>
     <div class="card"><h2>📋 Contratos / obras <button class="btn ghost sm" id="btnCt2Refresh" style="float:right">↻</button></h2><div id="listaContratos"><div class="hint">carregando…</div></div></div>
    </div>
   </section>
@@ -588,14 +588,32 @@ let obraSel=null;
 $('btnNovaObra').onclick=async function(){const st=$('stNovaObra');const cli=$('no_cliente').value.trim();if(!cli){stMsg(st,'err','Informe o cliente.');return;}
   stMsg(st,'wait','Criando…');const {error}=await sb.from('obras').insert({cliente:cli,projeto:$('no_proj').value.trim(),valor:parseFloat($('no_valor').value)||null,endereco_instalacao:$('no_end').value.trim(),telefone:$('no_tel').value.trim(),data_contrato:hojeISO(),status:'0/8'});
   if(error)stMsg(st,'err','Erro: '+error.message);else{stMsg(st,'ok','✓ Obra criada!');['no_cliente','no_proj','no_valor','no_end','no_tel'].forEach(function(id){$(id).value='';});carregarObras();}};
+function _obraCardEl(o){
+  var f=0;for(var i=1;i<=8;i++)if(o['etapa'+i])f++;var done=f===8;
+  var dias=diasSem(o.atualizado_em||o.data_contrato);var parada=(!done&&dias!=null&&dias>5);
+  var d=document.createElement('div');d.className='listItem'+(parada?' parada':'');
+  d.innerHTML='<div><div class="nm">'+(parada?'⚠️ ':'')+esc(o.cliente)+'</div><div class="pj">'+(o.projeto?esc(o.projeto):'—')+(parada?' · <span style="color:#c0392b;font-weight:700">'+dias+' dias sem atualizar</span>':'')+'</div></div><div class="pill'+(done?' done':'')+'">'+f+'/8</div>';
+  d.onclick=function(){document.querySelectorAll('#listaObras .listItem').forEach(function(x){x.classList.remove('sel');});d.classList.add('sel');abrirObra(o);};
+  return d;
+}
 async function carregarObras(){const {data,error}=await sb.from('obras').select('*').order('id',{ascending:false});
   if(error){$('listaObras').innerHTML='<div class="st show err">Erro: '+error.message+'</div>';return;}
-  if(!data.length){$('listaObras').innerHTML='<div class="hint">Nenhuma obra. Crie uma acima ou pela geração de contrato.</div>';return;}
-  $('listaObras').innerHTML='';data.forEach(function(o){let f=0;for(let i=1;i<=8;i++)if(o['etapa'+i])f++;const done=f===8;
-    const dias=diasSem(o.atualizado_em||o.data_contrato);const parada=(!done&&dias!=null&&dias>5);
-    const d=document.createElement('div');d.className='listItem'+(parada?' parada':'');
-    d.innerHTML='<div><div class="nm">'+(parada?'⚠️ ':'')+esc(o.cliente)+'</div><div class="pj">'+(o.projeto?esc(o.projeto):'—')+(parada?' · <span style="color:#c0392b;font-weight:700">'+dias+' dias sem atualizar</span>':'')+'</div></div><div class="pill'+(done?' done':'')+'">'+f+'/8</div>';
-    d.onclick=function(){document.querySelectorAll('#listaObras .listItem').forEach(function(x){x.classList.remove('sel');});d.classList.add('sel');abrirObra(o);};$('listaObras').appendChild(d);});}
+  var box=$('listaObras');box.innerHTML='';
+  var ativas=[],concl=[];(data||[]).forEach(function(o){var f=0;for(var i=1;i<=8;i++)if(o['etapa'+i])f++;(f===8?concl:ativas).push(o);});
+  if(!ativas.length&&!concl.length){box.innerHTML='<div class="hint">Nenhuma obra. Crie uma acima ou pela geração de contrato.</div>';return;}
+  if(!ativas.length){box.innerHTML='<div class="hint">Nenhuma obra em andamento. 🎉 As concluídas estão logo abaixo e na aba Dados.</div>';}
+  else{ativas.forEach(function(o){box.appendChild(_obraCardEl(o));});}
+  if(concl.length){
+    var det=document.createElement('details');det.style.cssText='margin-top:12px;border-top:1.5px dashed var(--line);padding-top:10px';
+    var sum=document.createElement('summary');sum.style.cssText='cursor:pointer;font-weight:700;color:var(--gd);font-size:13px';
+    sum.textContent='✅ '+concl.length+' obra'+(concl.length>1?'s':'')+' concluída'+(concl.length>1?'s':'')+' (8/8) — anexada'+(concl.length>1?'s':'')+' na aba Dados do cliente';
+    det.appendChild(sum);
+    var hint=document.createElement('div');hint.className='hint';hint.style.margin='6px 0 8px';hint.textContent='Saíram da lista principal para deixá-la limpa. Clique para ver ou reabrir o checklist.';
+    det.appendChild(hint);
+    concl.forEach(function(o){det.appendChild(_obraCardEl(o));});
+    box.appendChild(det);
+  }
+}
 function abrirObra(o){obraSel=o;current=o;let h='<h2 style="margin-top:0">🔧 '+esc(o.cliente)+'</h2><div class="hint">'+(o.projeto?'Projeto '+esc(o.projeto)+' · ':'')+(o.valor?brl(o.valor):'')+'</div>';
   h+='<label style="font-weight:700;font-size:12px;color:#5a6a60;margin-top:8px;display:block">CHECKLIST</label><div id="obraSteps">';
   for(let i=0;i<8;i++){const val=o['etapa'+(i+1)]||'';h+='<div class="step'+(val?' ok':'')+'"><div class="num">'+(i+1)+'</div><div class="snm">'+esc(OBRA_ETAPAS[i])+'</div><input type="date" data-s="'+i+'" value="'+(val?String(val).slice(0,10):'')+'"><button class="btn ghost sm waStep" data-wa="'+i+'" title="Avisar cliente no WhatsApp" style="padding:3px 7px;margin-left:5px">📲</button></div>';}
@@ -636,15 +654,33 @@ $('btnPos').onclick=async function(){const st=$('stPos');const cli=$('pv_cliente
   if(!cli){stMsg(st,'err','Informe o cliente.');return;}if(!serv){stMsg(st,'err','Descreva o serviço.');return;}
   stMsg(st,'wait','Salvando…');const {error}=await sb.from('posvenda').insert({data:$('pv_data').value||hojeISO(),cliente:cli,servico:serv,atendente:$('pv_atend').value.trim(),prazo:$('pv_prazo').value,protocolo:$('pv_prot').value.trim(),status:'Aberto'});
   if(error)stMsg(st,'err','Erro: '+error.message);else{stMsg(st,'ok','✓ Chamado registrado!');['pv_cliente','pv_serv','pv_atend','pv_prot'].forEach(function(id){$(id).value='';});carregarPos();}};
+function _posItemEl(c){
+  var concl=c.status==='Concluído';var d=document.createElement('div');d.className='item';
+  var m=[];if(c.data)m.push('Data: '+dBR(c.data));if(c.prazo)m.push('Prazo: '+dBR(c.prazo));if(c.atendente)m.push('Atend.: '+esc(c.atendente));
+  d.innerHTML='<div class="t">'+esc(c.cliente)+' <span class="badge '+(concl?'ab':'ap')+'">'+(concl?'Concluído':'Aberto')+'</span></div><div class="sub">'+esc(c.servico||'')+'</div><div class="sub">'+m.join(' · ')+'</div><div class="act"><button class="btn primary sm bos">📄 Gerar OS</button><button class="btn ghost sm bt">'+(concl?'↺ Reabrir':'✓ Concluir')+'</button><button class="btn ghost sm bx" style="color:#c0392b">🗑 Excluir</button></div>';
+  d.querySelector('.bos').onclick=function(){var dd={numero:_osNumero('OS-PV',c.id),tipo:'PÓS-VENDA / ATENDIMENTO',data:c.data||hojeISO(),cliente:c.cliente||'',endereco:'',contato:'',protocolo:c.protocolo||'',responsavel:c.atendente||'',itens:String(c.servico||'').split(/\r?\n/),obs:(c.prazo?'Prazo de atendimento: '+dBR(c.prazo)+'. ':'')+'Chamado de pós-venda registrado na Central União Sudoeste Solar.'};_abrirOS(dd,null);};
+  d.querySelector('.bt').onclick=async function(){await sb.from('posvenda').update({status:concl?'Aberto':'Concluído'}).eq('id',c.id);carregarPos();};
+  d.querySelector('.bx').onclick=async function(){if(!confirm('Excluir o chamado de '+c.cliente+'?'))return;await sb.from('posvenda').delete().eq('id',c.id);carregarPos();};
+  return d;
+}
 async function carregarPos(){const {data,error}=await sb.from('posvenda').select('*').order('id',{ascending:false});
   if(error){$('listaPos').innerHTML='<div class="st show err">Erro: '+error.message+'</div>';return;}
-  if(!data.length){$('listaPos').innerHTML='<div class="hint">Nenhum chamado.</div>';return;}
-  $('listaPos').innerHTML='';data.forEach(function(c){const concl=c.status==='Concluído';const d=document.createElement('div');d.className='item';
-    const m=[];if(c.data)m.push('Data: '+dBR(c.data));if(c.prazo)m.push('Prazo: '+dBR(c.prazo));if(c.atendente)m.push('Atend.: '+esc(c.atendente));
-    d.innerHTML='<div class="t">'+esc(c.cliente)+' <span class="badge '+(concl?'ab':'ap')+'">'+(concl?'Concluído':'Aberto')+'</span></div><div class="sub">'+esc(c.servico||'')+'</div><div class="sub">'+m.join(' · ')+'</div><div class="act"><button class="btn primary sm bos">📄 Gerar OS</button><button class="btn ghost sm bt">'+(concl?'↺ Reabrir':'✓ Concluir')+'</button><button class="btn ghost sm bx" style="color:#c0392b">🗑 Excluir</button></div>';
-    d.querySelector('.bos').onclick=function(){var dd={numero:_osNumero('OS-PV',c.id),tipo:'PÓS-VENDA / ATENDIMENTO',data:c.data||hojeISO(),cliente:c.cliente||'',endereco:'',contato:'',protocolo:c.protocolo||'',responsavel:c.atendente||'',itens:String(c.servico||'').split(/\r?\n/),obs:(c.prazo?'Prazo de atendimento: '+dBR(c.prazo)+'. ':'')+'Chamado de pós-venda registrado na Central União Sudoeste Solar.'};_abrirOS(dd,null);};
-    d.querySelector('.bt').onclick=async function(){await sb.from('posvenda').update({status:concl?'Aberto':'Concluído'}).eq('id',c.id);carregarPos();};
-    d.querySelector('.bx').onclick=async function(){if(!confirm('Excluir o chamado de '+c.cliente+'?'))return;await sb.from('posvenda').delete().eq('id',c.id);carregarPos();};$('listaPos').appendChild(d);});}
+  var box=$('listaPos');box.innerHTML='';
+  var abertos=[],concl=[];(data||[]).forEach(function(c){(c.status==='Concluído'?concl:abertos).push(c);});
+  if(!abertos.length&&!concl.length){box.innerHTML='<div class="hint">Nenhum chamado.</div>';return;}
+  if(!abertos.length){box.innerHTML='<div class="hint">Nenhum chamado aberto. 🎉 Os concluídos estão abaixo e na aba Dados.</div>';}
+  else{abertos.forEach(function(c){box.appendChild(_posItemEl(c));});}
+  if(concl.length){
+    var det=document.createElement('details');det.style.cssText='margin-top:12px;border-top:1.5px dashed var(--line);padding-top:10px';
+    var sum=document.createElement('summary');sum.style.cssText='cursor:pointer;font-weight:700;color:var(--gd);font-size:13px';
+    sum.textContent='✅ '+concl.length+' chamado'+(concl.length>1?'s':'')+' concluído'+(concl.length>1?'s':'')+' — anexado'+(concl.length>1?'s':'')+' na aba Dados do cliente';
+    det.appendChild(sum);
+    var hint=document.createElement('div');hint.className='hint';hint.style.margin='6px 0 8px';hint.textContent='Saíram da lista principal para deixá-la limpa. Clique para ver, reabrir ou gerar OS.';
+    det.appendChild(hint);
+    concl.forEach(function(c){det.appendChild(_posItemEl(c));});
+    box.appendChild(det);
+  }
+}
 $('btnPosRefresh').onclick=carregarPos;
 
 /* ============ ANÁLISE TÉCNICA DE GERAÇÃO (pós-venda) ============ */
@@ -1874,7 +1910,7 @@ function buildProcuracaoDoc(c){
    +'<div class="sign"><div class="l"></div><b>'+c.nome+'</b>CPF: '+c.cpf+'<br>OUTORGANTE</div>'
    +'</body></html>';
 }
-function gerarProcuracaoTab(){
+function gerarProcuracaoTab(editar){
   var st=$('ct2Status');
   var nome=$('ct2_nome').value.trim();
   if(!nome){ stMsg(st,'err','Informe o nome do cliente.'); return; }
@@ -1884,6 +1920,10 @@ function gerarProcuracaoTab(){
   var dataExt=pp[2]+' de '+(MES[parseInt(pp[1],10)-1]||'')+' de '+pp[0];
   var c={ nome:esc(nome), estadoCivil:esc(($('ct2_ec').value||'').trim().toUpperCase()||'—'), rg:esc(($('ct2_rg').value||'').trim()||'—'), cpf:esc(($('ct2_cpf').value||'').trim()||'—'), endereco:esc(endereco), cidadeUF:'Vitória da Conquista - Bahia', dataExt:dataExt };
   var html=buildProcuracaoDoc(c);
+  if(editar){
+    if(!_abrirContratoEditavel(html)){ stMsg(st,'err','Permita pop-ups (janelas) para abrir a procuração.'); return; }
+    stMsg(st,'ok','✏️ Procuração aberta para edição — ajuste o texto e clique em Imprimir / Salvar PDF.'); return;
+  }
   var w=window.open('','_blank'); if(!w){ stMsg(st,'err','Permita pop-ups (janelas) para abrir a procuração.'); return; }
   w.document.open(); w.document.write(html); w.document.close(); setTimeout(function(){ try{w.focus();w.print();}catch(e){} },700);
   stMsg(st,'ok','📄 Procuração gerada.');
@@ -1952,7 +1992,8 @@ async function gerarRelatorioOrc(){
   }catch(e){ alert('Erro ao gerar o relatório: '+(e&&e.message||e)); }
 }
 (function(){
-  var bp=$('btnCt2Proc'); if(bp) bp.onclick=gerarProcuracaoTab;
+  var bp=$('btnCt2Proc'); if(bp) bp.onclick=function(){gerarProcuracaoTab(false);};
+  var bpe=$('btnCt2ProcEditar'); if(bpe) bpe.onclick=function(){gerarProcuracaoTab(true);};
   var br=$('btnOrcRel'); if(br) br.onclick=gerarRelatorioOrc;
 })();
 
@@ -2225,9 +2266,50 @@ async function removerContaExtra(c,key){
   try{ await sb.from('clientes').update({arquivos:arqs}).eq('id',c.id); c.arquivos=arqs; abrirCliente(c); }
   catch(e){ alert('Erro: '+(e&&e.message||e)); }
 }
+async function _carregarPosCliente(c){
+  var box=$('dadosPos'); if(!box) return; box.innerHTML='';
+  try{
+    var r=await sb.from('posvenda').select('*').eq('cliente', c.cliente);
+    var chs=((r&&r.data)||[]).filter(function(x){return x.status==='Concluído';});
+    if(!chs.length) return;
+    var html='<div class="dsec" style="border:1.5px solid #bfe3cb;background:#f3faf5;border-radius:12px;padding:12px 14px;margin:6px 0 4px">';
+    html+='<h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">🤝 Pós-venda — chamados concluídos ('+chs.length+')</h3>';
+    chs.forEach(function(x){
+      var m=[];if(x.data)m.push('Data: '+dBR(x.data));if(x.atendente)m.push('Atend.: '+esc(x.atendente));if(x.protocolo)m.push('Protocolo: '+esc(x.protocolo));
+      html+='<div style="border-bottom:1px dotted #d9e6de;padding:6px 0"><div style="font-weight:600;font-size:12.8px">'+esc(x.servico||'—')+'</div>'+(m.length?'<div class="hint" style="margin-top:2px">'+m.join(' · ')+'</div>':'')+'</div>';
+    });
+    html+='</div>';
+    box.innerHTML=html;
+  }catch(e){ /* silencioso */ }
+}
+async function _carregarObraCliente(c){
+  var box=$('dadosObra'); if(!box) return; box.innerHTML='';
+  try{
+    var r=await sb.from('obras').select('*').eq('cliente', c.cliente);
+    var obras=(r&&r.data)||[];
+    var done=obras.filter(function(o){var f=0;for(var i=1;i<=8;i++)if(o['etapa'+i])f++;return f===8;});
+    if(!done.length) return;
+    var html='';
+    done.forEach(function(o){
+      html+='<div class="dsec" style="border:1.5px solid #bfe3cb;background:#f3faf5;border-radius:12px;padding:12px 14px;margin:6px 0 4px">';
+      html+='<h3 style="color:var(--gd);font-size:14px;margin:0 0 8px">🔧 Obra concluída (8/8)'+(o.projeto?' · Projeto '+esc(o.projeto):'')+(o.valor?' · '+brl(o.valor):'')+'</h3>';
+      html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;font-size:12.5px">';
+      for(var i=1;i<=8;i++){ var dt=o['etapa'+i]; html+='<div style="display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted #d9e6de;padding:3px 0"><span style="color:#5a6a60">'+(i)+'. '+esc(OBRA_ETAPAS[i-1])+'</span><span style="font-weight:700;color:var(--gd)">'+(dt?dBR(dt):'—')+'</span></div>'; }
+      html+='</div>';
+      if(o.coelba&&String(o.coelba).toLowerCase().indexOf('sim')===0&&o.servico_coelba){ html+='<div style="margin-top:8px;font-size:12.5px"><b style="color:var(--gd)">⚡ Serviços COELBA:</b> '+esc(o.servico_coelba).replace(/\n/g,' · ')+'</div>'; }
+      html+='<div class="actions" style="margin-top:8px"><button class="btn ghost sm _vobra">🔧 Abrir checklist da obra</button></div>';
+      html+='</div>';
+    });
+    box.innerHTML=html;
+    var btns=box.querySelectorAll('._vobra');
+    done.forEach(function(o,idx){ if(btns[idx]) btns[idx].onclick=function(){ var nav=document.querySelector('.navitem[data-view="obra"]'); if(nav) nav.click(); setTimeout(function(){ abrirObra(o); },120); }; });
+  }catch(e){ /* silencioso */ }
+}
 function abrirCliente(c){
   dadosSel=c;
   var h='<h2 style="margin-top:0">📁 '+esc(c.cliente)+'</h2>';
+  h+='<div id="dadosObra"></div>';
+  h+='<div id="dadosPos"></div>';
   // 1. Dados gerais
   h+='<div class="dsec" style="border-top:1.5px solid var(--line);padding-top:10px;margin-top:8px"><h3 style="color:var(--gd);font-size:14px;margin:0 0 8px">1 · Dados gerais (orçamento e contrato)</h3>';
   h+='<div class="frow two"><div><label>Nº do orçamento</label><input id="dg_num" value="'+esc(c.numero_orcamento!=null?c.numero_orcamento:'')+'"></div><div><label>Nº do projeto</label><input id="dg_proj" value="'+esc(c.projeto||'')+'"></div></div>';
@@ -2253,6 +2335,8 @@ function abrirCliente(c){
   _CAT_VIST.forEach(function(x){h+=_slotHTML(c,x[0],x[1]);});
   h+='</div><div id="dadosStatus" class="st"></div>';
   $('dadosDet').innerHTML=h;
+  _carregarObraCliente(c);
+  _carregarPosCliente(c);
   $('btnDgSalvar').onclick=function(){salvarDadosGerais(c);};
   $('btnLocalSalvar').onclick=function(){salvarLocalizacao(c);};
   var bpa=$('btnPlanAbrir'); if(bpa) bpa.onclick=function(){window.open(c.planilha_url,'_blank');};
