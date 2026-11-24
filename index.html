@@ -268,6 +268,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
     <div class="actions"><button class="btn primary" id="btnAgGerar">📄 Gerar análise (PDF)</button><button class="btn ghost" id="btnAgLimpar">Limpar</button></div>
     <div id="stAg" class="st"></div>
    </div>
+   <div class="card"><h2>📡 Monitoramentos <button class="btn ghost sm" id="btnMonitRefresh" style="float:right">↻ Atualizar</button></h2>
+    <div class="vsub" style="margin:0 0 10px">Sistemas de clientes que ficaram offline. Registre a data em que caiu e o contato com o cliente; se precisar de visita, gere a OS com equipe, data e valor (vai ao financeiro como "a receber"). Ao concluir o serviço, sai da lista de offline.</div>
+    <div class="frow"><label>Cliente / sistema</label><input id="mon_cliente" placeholder="Nome do cliente"></div>
+    <div class="frow two"><div><label>Ficou offline em</label><input id="mon_off" type="date"></div><div><label>Contato com o cliente em</label><input id="mon_contato" type="date"></div></div>
+    <div class="actions"><button class="btn primary" id="btnMonitAdd">📡 Registrar sistema offline</button></div><div id="stMonit" class="st"></div>
+    <div id="listaMonit" style="margin-top:10px"><div class="hint">carregando…</div></div>
+   </div>
   </section>
 
   <!-- ===================== MARKETING ===================== -->
@@ -438,7 +445,7 @@ document.querySelectorAll('.navitem').forEach(function(n){n.onclick=function(){
   n.classList.add('active');$(n.dataset.view).classList.add('active');
   var v=n.dataset.view;
   if(v==='financeiro')carregarFin();
-  if(v==='orcamento')carregarOrc(); if(v==='obra')carregarObras(); if(v==='posvenda')carregarPos();
+  if(v==='orcamento')carregarOrc(); if(v==='obra')carregarObras(); if(v==='posvenda'){carregarPos();carregarMonit();}
   if(v==='marketing')carregarMkt(); if(v==='manutencoes')carregarManut(); if(v==='equipes')carregarEq();
   if(v==='contratos')carregarContratos(); if(v==='dados')carregarDados(); if(v==='usuarios')carregarUsuarios();
   _abrirSetor(n);
@@ -682,6 +689,116 @@ async function carregarPos(){const {data,error}=await sb.from('posvenda').select
   }
 }
 $('btnPosRefresh').onclick=carregarPos;
+
+/* ============ MONITORAMENTOS (sistemas offline) ============ */
+var _monEq=[];
+async function _monCarregarEquipes(){ try{ var r=await sb.from('equipes').select('*').order('nome',{ascending:true}); _monEq=(r&&r.data)||[]; }catch(e){ _monEq=[]; } }
+function _monEqOptions(sel){
+  var opts='<option value="">— selecione a equipe —</option>';
+  _monEq.forEach(function(e){ opts+='<option value="'+e.id+'"'+(String(sel)===String(e.id)?' selected':'')+'>'+esc(e.nome)+(e.cidade?' · '+esc(e.cidade):'')+'</option>'; });
+  opts+='<option value="nova"'+(sel==='nova'?' selected':'')+'>➕ Nova equipe (digitar)</option>';
+  return opts;
+}
+function _monMsg(el,cls,msg){ var s=el.querySelector('.mSt'); if(s) stMsg(s,cls,msg); }
+function _monItemEl(m){
+  var concl=m.status==='Concluído';
+  var lanc=String(m.lancado_financeiro||'').toLowerCase().indexOf('sim')===0;
+  var rec=String(m.recebido||'').toLowerCase().indexOf('sim')===0;
+  var eqSelVal=m.equipe_id!=null?String(m.equipe_id):(m.equipe_nome?'nova':'');
+  var d=document.createElement('div'); d.className='item';
+  var badges='<span class="badge '+(concl?'ab':'ap')+'">'+(concl?'Concluído':'Offline')+'</span>'+(lanc?' <span class="badge ap">a receber</span>':'')+(rec?' <span class="badge ab">recebido</span>':'');
+  var sub='Offline desde: '+(m.data_offline?dBR(m.data_offline):'—')+' · Contato: '+(m.data_contato?dBR(m.data_contato):'—')+(m.concluida_em?' · Concluído: '+dBR(m.concluida_em):'');
+  d.innerHTML='<div class="t">'+esc(m.cliente)+' '+badges+'</div><div class="sub">'+sub+'</div>'
+   +'<div style="width:100%;border-top:1px dashed var(--line);margin-top:7px;padding-top:7px">'
+   +'<div class="frow two"><div><label>Equipe que vai executar</label><select class="mEq">'+_monEqOptions(eqSelVal)+'</select></div><div><label>Data do serviço</label><input type="date" class="mData" value="'+(m.data_servico?String(m.data_servico).slice(0,10):'')+'"></div></div>'
+   +'<div class="mNovaWrap frow" style="display:'+(eqSelVal==='nova'?'block':'none')+'"><label>Nova equipe (nome)</label><input class="mNova" value="'+esc(m.equipe_nome||'')+'"></div>'
+   +'<div class="frow"><label>Valor do serviço (R$)</label><input type="number" step="0.01" class="mValor" value="'+(m.valor!=null?m.valor:'')+'"></div>'
+   +'<div class="act" style="flex-wrap:wrap;gap:6px">'
+     +'<button class="btn ghost sm mSalvar">💾 Salvar</button>'
+     +'<button class="btn primary sm mOS">📄 Gerar OS</button>'
+     +(lanc?('<button class="btn ok sm mReceb"'+(rec?' disabled':'')+'>'+(rec?'✓ Recebido':'✓ Marcar recebido')+'</button>'):'<button class="btn ok sm mFin">💰 Lançar a receber</button>')
+     +(concl?'':'<button class="btn primary sm mConcluir">✅ Concluir serviço</button>')
+     +'<button class="btn ghost sm mDel" style="color:#c0392b">🗑</button>'
+   +'</div><div class="mSt st"></div></div>';
+  var eqS=d.querySelector('.mEq'); eqS.onchange=function(){ d.querySelector('.mNovaWrap').style.display=(eqS.value==='nova')?'block':'none'; };
+  d.querySelector('.mSalvar').onclick=function(){_monSalvar(m,d);};
+  d.querySelector('.mOS').onclick=function(){_monOS(m,d);};
+  var bf=d.querySelector('.mFin'); if(bf) bf.onclick=function(){_monLancarFin(m,d);};
+  var br=d.querySelector('.mReceb'); if(br&&!rec) br.onclick=function(){_monReceber(m,d);};
+  var bc=d.querySelector('.mConcluir'); if(bc) bc.onclick=function(){ if(confirm('Concluir o serviço de "'+m.cliente+'"? Ele sai da lista de sistemas offline.')) _monConcluir(m,d); };
+  d.querySelector('.mDel').onclick=function(){ if(confirm('Excluir o registro de "'+m.cliente+'"?')) _monExcluir(m); };
+  return d;
+}
+function _monLerEquipe(el){
+  var v=el.querySelector('.mEq').value, equipe_id=null, equipe_nome=null;
+  if(v==='nova'){ equipe_nome=(el.querySelector('.mNova').value||'').trim()||null; }
+  else if(v){ equipe_id=+v; var e=_monEq.filter(function(x){return String(x.id)===v;})[0]; equipe_nome=e?e.nome:null; }
+  return {equipe_id:equipe_id, equipe_nome:equipe_nome};
+}
+async function _monSalvar(m,el){
+  var eq=_monLerEquipe(el);
+  var patch={equipe_id:eq.equipe_id, equipe_nome:eq.equipe_nome, data_servico:el.querySelector('.mData').value||null, valor:parseFloat(el.querySelector('.mValor').value)||null};
+  var r=await sb.from('monitoramentos').update(patch).eq('id',m.id);
+  if(r&&r.error){ _monMsg(el,'err','Erro: '+r.error.message); return; }
+  Object.assign(m,patch); _monMsg(el,'ok','💾 Salvo.');
+}
+function _monOS(m,el){
+  var eq=_monLerEquipe(el); var valor=parseFloat(el.querySelector('.mValor').value)||0; var dataServ=el.querySelector('.mData').value||hojeISO();
+  var d={numero:_osNumero('OS-MON',m.id), tipo:'MANUTENÇÃO · SISTEMA OFFLINE', data:dataServ, cliente:m.cliente||'', endereco:'', contato:'', responsavel:eq.equipe_nome||'—',
+    itens:['Diagnóstico do sistema fotovoltaico (sistema offline)','Reparo e restabelecimento da geração / comunicação do sistema'],
+    obs:'Sistema offline desde '+(m.data_offline?dBR(m.data_offline):'—')+'.'+(m.data_contato?' Cliente contatado em '+dBR(m.data_contato)+'.':'')+(valor>0?(' Valor do serviço: '+brl(valor)+'.'):'')};
+  _abrirOS(d,null); _monMsg(el,'ok','📄 OS gerada.');
+}
+async function _monLancarFin(m,el){
+  var valor=parseFloat(el.querySelector('.mValor').value)||0;
+  if(!(valor>0)){ _monMsg(el,'err','Informe o valor do serviço antes de lançar.'); return; }
+  var eq=_monLerEquipe(el); var data=el.querySelector('.mData').value||hojeISO(); var ma=mesAno(data);
+  try{
+    var ins=await sb.from('financeiro').insert({tipo:'Entrada',status:'Em aberto',data_prevista:data,cliente_fornecedor:m.cliente,descricao:'Serviço de monitoramento/reparo (sistema offline)',categoria:'Serviço',valor:valor,origem:'Monitoramento',mes:ma.mes,ano:ma.ano}).select();
+    var fid=(ins&&ins.data&&ins.data[0]&&ins.data[0].id)||null;
+    await sb.from('monitoramentos').update({valor:valor,equipe_id:eq.equipe_id,equipe_nome:eq.equipe_nome,data_servico:data,financeiro_id:fid,lancado_financeiro:'Sim'}).eq('id',m.id);
+    _monMsg(el,'ok','💰 Lançado no financeiro como a receber.'); carregarMonit(); if(typeof carregarFin==='function')carregarFin();
+  }catch(e){ _monMsg(el,'err','Erro: '+(e&&e.message||e)); }
+}
+async function _monReceber(m,el){
+  try{
+    if(m.financeiro_id){ await sb.from('financeiro').update({status:'Recebido',data_realizada:hojeISO()}).eq('id',m.financeiro_id); }
+    await sb.from('monitoramentos').update({recebido:'Sim'}).eq('id',m.id);
+    _monMsg(el,'ok','✓ Marcado como recebido.'); carregarMonit(); if(typeof carregarFin==='function')carregarFin();
+  }catch(e){ _monMsg(el,'err','Erro: '+(e&&e.message||e)); }
+}
+async function _monConcluir(m,el){
+  try{ await sb.from('monitoramentos').update({status:'Concluído',concluida_em:hojeISO()}).eq('id',m.id); carregarMonit(); }
+  catch(e){ _monMsg(el,'err','Erro: '+(e&&e.message||e)); }
+}
+async function _monExcluir(m){ try{ await sb.from('monitoramentos').delete().eq('id',m.id); carregarMonit(); }catch(e){ alert('Erro: '+(e&&e.message||e)); } }
+async function carregarMonit(){
+  var box=$('listaMonit'); if(!box) return;
+  await _monCarregarEquipes();
+  var r=await sb.from('monitoramentos').select('*').order('id',{ascending:false});
+  if(r.error){ box.innerHTML='<div class="st show err">Erro ao carregar (a tabela "monitoramentos" já foi criada? rode o SQL enviado): '+r.error.message+'</div>'; return; }
+  var data=r.data||[]; box.innerHTML='';
+  var off=[],done=[]; data.forEach(function(m){ (m.status==='Concluído'?done:off).push(m); });
+  if(!off.length&&!done.length){ box.innerHTML='<div class="hint">Nenhum sistema offline registrado.</div>'; return; }
+  if(!off.length){ box.innerHTML='<div class="hint">Nenhum sistema offline no momento. 🎉</div>'; }
+  else off.forEach(function(m){ box.appendChild(_monItemEl(m)); });
+  if(done.length){
+    var det=document.createElement('details'); det.style.cssText='margin-top:12px;border-top:1.5px dashed var(--line);padding-top:10px';
+    var sum=document.createElement('summary'); sum.style.cssText='cursor:pointer;font-weight:700;color:var(--gd);font-size:13px';
+    sum.textContent='✅ '+done.length+' serviço'+(done.length>1?'s':'')+' concluído'+(done.length>1?'s':'')+' (histórico)';
+    det.appendChild(sum);
+    done.forEach(function(m){ det.appendChild(_monItemEl(m)); });
+    box.appendChild(det);
+  }
+}
+async function _monAdd(){
+  var st=$('stMonit'); var cli=($('mon_cliente').value||'').trim();
+  if(!cli){ stMsg(st,'err','Informe o cliente/sistema.'); return; }
+  var r=await sb.from('monitoramentos').insert({cliente:cli,data_offline:$('mon_off').value||null,data_contato:$('mon_contato').value||null,status:'Offline',lancado_financeiro:'Não',recebido:'Não'});
+  if(r&&r.error){ stMsg(st,'err','Erro: '+r.error.message); return; }
+  stMsg(st,'ok','📡 Sistema offline registrado.'); $('mon_cliente').value='';$('mon_off').value='';$('mon_contato').value=''; carregarMonit();
+}
+(function(){ var a=$('btnMonitAdd'); if(a) a.onclick=_monAdd; var r=$('btnMonitRefresh'); if(r) r.onclick=carregarMonit; })();
 
 /* ============ ANÁLISE TÉCNICA DE GERAÇÃO (pós-venda) ============ */
 function _numBR(s){s=String(s==null?'':s).trim();if(!s)return 0;if(s.indexOf(',')>-1)s=s.replace(/\./g,'').replace(',','.');return parseFloat(s)||0;}
