@@ -2266,11 +2266,13 @@ async function removerContaExtra(c,key){
   try{ await sb.from('clientes').update({arquivos:arqs}).eq('id',c.id); c.arquivos=arqs; abrirCliente(c); }
   catch(e){ alert('Erro: '+(e&&e.message||e)); }
 }
+function _norm(s){return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();}
 async function _carregarPosCliente(c){
   var box=$('dadosPos'); if(!box) return; box.innerHTML='';
   try{
-    var r=await sb.from('posvenda').select('*').eq('cliente', c.cliente);
-    var chs=((r&&r.data)||[]).filter(function(x){return x.status==='Concluído';});
+    var r=await sb.from('posvenda').select('*');
+    var alvo=_norm(c.cliente);
+    var chs=((r&&r.data)||[]).filter(function(x){return x.status==='Concluído' && _norm(x.cliente)===alvo;});
     if(!chs.length) return;
     var html='<div class="dsec" style="border:1.5px solid #bfe3cb;background:#f3faf5;border-radius:12px;padding:12px 14px;margin:6px 0 4px">';
     html+='<h3 style="color:var(--gd);font-size:14px;margin:0 0 6px">🤝 Pós-venda — chamados concluídos ('+chs.length+')</h3>';
@@ -2285,8 +2287,9 @@ async function _carregarPosCliente(c){
 async function _carregarObraCliente(c){
   var box=$('dadosObra'); if(!box) return; box.innerHTML='';
   try{
-    var r=await sb.from('obras').select('*').eq('cliente', c.cliente);
-    var obras=(r&&r.data)||[];
+    var r=await sb.from('obras').select('*');
+    var alvo=_norm(c.cliente);
+    var obras=((r&&r.data)||[]).filter(function(o){return _norm(o.cliente)===alvo;});
     var done=obras.filter(function(o){var f=0;for(var i=1;i<=8;i++)if(o['etapa'+i])f++;return f===8;});
     if(!done.length) return;
     var html='';
