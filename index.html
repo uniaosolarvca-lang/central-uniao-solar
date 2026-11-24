@@ -626,7 +626,7 @@ function abrirObra(o){obraSel=o;current=o;let h='<h2 style="margin-top:0">🔧 '
   for(let i=0;i<8;i++){const val=o['etapa'+(i+1)]||'';h+='<div class="step'+(val?' ok':'')+'"><div class="num">'+(i+1)+'</div><div class="snm">'+esc(OBRA_ETAPAS[i])+'</div><input type="date" data-s="'+i+'" value="'+(val?String(val).slice(0,10):'')+'"><button class="btn ghost sm waStep" data-wa="'+i+'" title="Avisar cliente no WhatsApp" style="padding:3px 7px;margin-left:5px">📲</button></div>';}
   h+='</div><div class="actions" style="margin-top:12px"><button class="btn primary" id="btnObraSalvar">💾 Salvar checklist</button><button class="btn ghost" id="btnExcluirObra" style="color:#c0392b">🗑 Excluir obra</button></div><div id="stObra" class="st"></div>';
   h+='<div style="margin-top:14px;border-top:1.5px solid var(--line);padding-top:10px"><label style="font-weight:700;font-size:12px;color:#5a6a60;display:block;margin-bottom:6px">💰 CUSTOS E RENTABILIDADE (ETAPA 5)</label>';
-  h+='<div id="matRows"></div><div class="actions" style="margin:6px 0"><button class="btn ghost sm" id="btnAddMat">➕ Adicionar item</button></div>';
+  h+='<div id="matRows"></div><div class="actions" style="margin:6px 0;flex-wrap:wrap;gap:6px"><button class="btn ghost sm" id="btnAddMat">➕ Adicionar item</button><label class="btn ok sm" style="cursor:pointer">📷 Ler NF (JPG) e lançar custo<input type="file" id="nfInput" accept="image/*" style="display:none"></label></div>';
   h+='<div id="matResumo" class="hint" style="margin:4px 0"></div>';
   h+='<div class="frow two"><div><label>Orçamento previsto (R$)</label><input id="obraOrc" type="number" step="0.01"></div><div><label>Receita disponível da obra (R$)</label><input id="obraReceita" type="number" step="0.01"></div></div>';
   h+='<div class="actions" style="margin-top:8px"><button class="btn primary sm" id="btnSalvarCustos">💾 Salvar custos</button><button class="btn ok sm" id="btnAnaliseObra">📊 Gerar análise PDF</button></div><div id="custosStatus" class="st"></div></div>';
@@ -1363,7 +1363,93 @@ function renderMat(){var box=$('matRows');if(!box)return;if(!matData.length){box
 function analiseObra(){var receita=(+$('obraReceita').value)||0;var material=matTotal();var servico=_num2(current&&current.valor_servico);var previsto=(+$('obraOrc').value)||0;var custo=material+servico;var lucro=receita-custo;var margem=receita>0?lucro/receita:null;return {receita:receita,material:material,servico:servico,previsto:previsto,custo:custo,lucro:lucro,margem:margem};}
 async function salvarCustos(){var st=$('custosStatus'),b=$('btnSalvarCustos');stMsg(st,'wait','Salvando custos…');b.disabled=true;var prev=(+$('obraOrc').value)||null,rec=(+$('obraReceita').value)||null;var res=await sb.from('obras').update({materiais:matData,orcamento_previsto:prev,receita_disponivel:rec}).eq('id',current.id);if(res.error){stMsg(st,'err','Erro: '+res.error.message);}else{current.materiais=matData.slice();current.orcamento_previsto=prev;current.receita_disponivel=rec;stMsg(st,'ok','✓ Custos salvos no banco.');}b.disabled=false;}
 function gerarAnaliseObra(){var st=$('custosStatus');var a=analiseObra();if(!(a.receita>0)){stMsg(st,'err','Digite a "Receita disponível da obra" para calcular a rentabilidade.');return;}var html=buildAnaliseHTML(a);var w=window.open('','_blank');if(!w){stMsg(st,'err','Permita pop-ups (janelas) para gerar a análise em PDF.');return;}w.document.open();w.document.write(html);w.document.close();setTimeout(function(){try{w.focus();w.print();}catch(e){}},700);stMsg(st,'ok',a.lucro>=0?('📊 Análise gerada — lucro de '+brl(a.lucro)+'.'):('📊 Análise gerada — PREJUÍZO de '+brl(Math.abs(a.lucro))+'.'));}
-function initCustos(o){matData=(o.materiais&&o.materiais.length)?o.materiais.slice():[];if($('obraOrc'))$('obraOrc').value=(o.orcamento_previsto!=null?o.orcamento_previsto:'');if($('obraReceita'))$('obraReceita').value=(o.receita_disponivel!=null?o.receita_disponivel:'');renderMat();$('btnAddMat').onclick=function(){matData.push({descricao:'',qtd:1,valorUnit:0});renderMat();};$('btnSalvarCustos').onclick=salvarCustos;$('btnAnaliseObra').onclick=gerarAnaliseObra;}
+/* ---- Leitor de NF (OCR no navegador) ---- */
+function _loadTesseract(cb){
+  if(window.Tesseract){ cb(); return; }
+  var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+  s.onload=function(){ cb(); }; s.onerror=function(){ cb(new Error('Não consegui carregar o leitor de nota (verifique a internet).')); };
+  document.head.appendChild(s);
+}
+function _parseValorNF(txt){
+  var t=String(txt||'').replace(/\r/g,'\n');
+  var reMoney=/(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2})/g;
+  function toNum(s){ return parseFloat(String(s).replace(/\./g,'').replace(',','.'))||0; }
+  var lines=t.split('\n');
+  var kw=/(VALOR\s+TOTAL\s+DA\s+NOTA|VALOR\s+TOTAL\s+DA\s+NF|VALOR\s+TOTAL\s+DOS?\s+PRODUTOS?|VALOR\s+TOTAL|VALOR\s+L[IÍ]QUIDO|TOTAL\s+DA\s+NOTA|TOTAL\s+GERAL|V\.\s*TOTAL)/i;
+  var best=0;
+  for(var i=0;i<lines.length;i++){
+    if(kw.test(lines[i])){
+      var ms=lines[i].match(reMoney)||((lines[i+1]||'').match(reMoney));
+      if(ms){ ms.forEach(function(x){ var v=toNum(x); if(v>best) best=v; }); }
+    }
+  }
+  if(best>0) return best;
+  var all=t.match(reMoney)||[]; all.forEach(function(x){ var v=toNum(x); if(v>best) best=v; });
+  return best;
+}
+function _nfToNum(x){ return parseFloat(String(x).replace(/\./g,'').replace(',','.'))||0; }
+function _parseNFItens(txt){
+  var t=String(txt||'').replace(/\r/g,'\n'); var lines=t.split('\n');
+  var s=0,e=lines.length;
+  for(var i=0;i<lines.length;i++){ if(/DADOS DOS PRODUTOS|DESCRI[ÇC][ÃA]O DO PRODUTO|C[ÓO]DIGO\s+PRODUTO|PRODUTO\s*\/\s*SERVI/i.test(lines[i])){ s=i+1; break; } }
+  for(var j=s;j<lines.length;j++){ if(/DADOS ADICIONAIS|C[ÁA]LCULO DO ISSQN|INFORMA[ÇC][ÕO]ES|VALOR TOTAL DA NOTA|V\.?\s*TOTAL DA NOTA|TOTAL\s+GERAL/i.test(lines[j])){ e=j; break; } }
+  var moneyRe=/\d{1,3}(?:\.\d{3})*,\d{1,4}/g; var items=[];
+  for(var k=s;k<e;k++){
+    var line=lines[k]; if(!line||line.trim().length<4) continue;
+    var toks=[],mm; moneyRe.lastIndex=0; while((mm=moneyRe.exec(line))){ toks.push({v:mm[0],i:mm.index}); }
+    var found=null;
+    if(toks.length>=3){
+      var lim=Math.min(toks.length,6);
+      outer: for(var a=0;a<lim-2;a++) for(var b=a+1;b<lim-1;b++) for(var c=b+1;c<lim;c++){
+        var q=_nfToNum(toks[a].v),u=_nfToNum(toks[b].v),tt=_nfToNum(toks[c].v);
+        if(q>0&&u>0&&tt>0&&Math.abs(q*u-tt)<=Math.max(0.05, tt*0.02)){ found={q:q,u:u,qi:toks[a].i}; break outer; }
+      }
+    }
+    if(!found){
+      var im=line.match(/(?:^|\s)(\d{1,4})\s+(?:[A-Za-zÇç]{1,3}\s+)?(\d{1,3}(?:\.\d{3})*,\d{1,4})\s+(\d{1,3}(?:\.\d{3})*,\d{1,4})/);
+      if(im){ var q2=parseInt(im[1],10),u2=_nfToNum(im[2]),t2=_nfToNum(im[3]); if(q2>0&&u2>0&&Math.abs(q2*u2-t2)<=Math.max(0.05,t2*0.02)){ found={q:q2,u:u2,qi:line.indexOf(im[0])}; } }
+    }
+    if(!found) continue;
+    var desc=line.slice(0, found.qi).replace(/\s{2,}/g,' ').trim();
+    desc=desc.replace(/^\s*\d{3,}\s+/,'').trim();
+    var junk=/\s+(?:\d{4}\.\d{2}\.\d{2}|\d{7,10}|\d{3,4}|UN|UND|UNID|PC|P[ÇC]|CX|KG|MT|M|LT|L|SC|RL|PT|CJ|PAR)$/i;
+    var guard=0; while(junk.test(desc)&&guard++<6) desc=desc.replace(junk,'').trim();
+    if(!desc) desc='Item da NF';
+    items.push({descricao:desc, qtd:found.q, valorUnit:found.u});
+  }
+  return items;
+}
+function _lerNF(file){
+  var st=$('custosStatus'); if(!st) return;
+  stMsg(st,'wait','Carregando leitor de nota (só na 1ª vez demora um pouco)…');
+  _loadTesseract(function(err){
+    if(err){ stMsg(st,'err',err.message); return; }
+    stMsg(st,'wait','Lendo a nota… 0%');
+    try{
+      window.Tesseract.recognize(file,'por',{logger:function(m){ if(m&&m.status==='recognizing text'){ stMsg(st,'wait','Lendo a nota… '+Math.round((m.progress||0)*100)+'%'); } }})
+      .then(function(res){
+        var txt=(res&&res.data&&res.data.text)||'';
+        var itens=_parseNFItens(txt); var totalNota=Math.round(_parseValorNF(txt)*100)/100;
+        if(itens.length){
+          itens.forEach(function(it){ matData.push({descricao:it.descricao, qtd:it.qtd, valorUnit:Math.round(it.valorUnit*100)/100, nf_nome:file.name||''}); });
+          renderMat();
+          var soma=Math.round(itens.reduce(function(a,b){return a+b.qtd*b.valorUnit;},0)*100)/100;
+          var msg='✓ Li '+itens.length+' item(ns) da NF (soma '+brl(soma)+').';
+          if(totalNota>0 && Math.abs(totalNota-soma)>Math.max(1,totalNota*0.03)) msg+=' ⚠ A nota indica total '+brl(totalNota)+' — pode ter item não lido; confira.';
+          msg+=' Revise descrições, quantidades e valores antes de salvar.';
+          stMsg(st,'ok',msg);
+        } else {
+          matData.push({descricao:'Material (NF)'+(file.name?' — '+file.name:''), qtd:1, valorUnit:totalNota, nf_nome:file.name||''});
+          renderMat();
+          if(totalNota>0) stMsg(st,'ok','✓ Não consegui separar item a item, mas li o TOTAL da nota: '+brl(totalNota)+'. Confira/ajuste.');
+          else stMsg(st,'err','Não consegui ler os itens nem o total — a imagem pode estar com baixa qualidade. Lance manualmente.');
+        }
+      })
+      .catch(function(e){ stMsg(st,'err','Erro ao ler a nota: '+(e&&e.message||e)); });
+    }catch(e){ stMsg(st,'err','Erro ao ler a nota: '+(e&&e.message||e)); }
+  });
+}
+function initCustos(o){matData=(o.materiais&&o.materiais.length)?o.materiais.slice():[];if($('obraOrc'))$('obraOrc').value=(o.orcamento_previsto!=null?o.orcamento_previsto:'');if($('obraReceita'))$('obraReceita').value=(o.receita_disponivel!=null?o.receita_disponivel:'');renderMat();$('btnAddMat').onclick=function(){matData.push({descricao:'',qtd:1,valorUnit:0});renderMat();};var nf=$('nfInput');if(nf)nf.onchange=function(){var f=this.files&&this.files[0];if(f)_lerNF(f);this.value='';};$('btnSalvarCustos').onclick=salvarCustos;$('btnAnaliseObra').onclick=gerarAnaliseObra;}
 
 /* ===== MODELO DE CONTRATO (template) ===== */
 function _contratoHTML(c){ return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><style>
