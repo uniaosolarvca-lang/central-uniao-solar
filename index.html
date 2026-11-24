@@ -124,6 +124,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
      <div class="navitem" data-view="obra"><span class="ic">🔧</span> Obras</div>
      <div class="navitem" data-view="equipes"><span class="ic">👷</span> Equipes</div>
      <div class="navitem" data-view="manutencoes"><span class="ic">🧰</span> Manutenções</div>
+     <div class="navitem" data-view="estoque"><span class="ic">📦</span> Estoque</div>
     </div>
    </div>
    <div class="navgrp" data-grp="clientes">
@@ -338,6 +339,29 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
    </div>
   </section>
 
+  <!-- ===================== ESTOQUE ===================== -->
+  <section class="view" id="estoque">
+   <div class="vhead"><h1>Estoque</h1><span class="tag">Ativo · Supabase</span></div>
+   <div class="vsub">Controle de materiais em estoque. Registre entradas e gere notas de saída — para uma obra (vira custo da obra e lança no financeiro) ou avulsa (venda, a receber).</div>
+   <div class="card"><h2>➕ Registrar material <button class="btn ghost sm" id="btnEstRefresh" style="float:right">↻ Atualizar</button></h2>
+    <div class="frow"><label>Nome do material</label><input id="est_nome" placeholder="Ex.: Cabo solar 6mm vermelho"></div>
+    <div class="frow two"><div><label>Quantidade</label><input id="est_qtd" type="number" step="0.01"></div><div><label>Valor unitário (R$)</label><input id="est_vu" type="number" step="0.01"></div></div>
+    <div class="actions"><button class="btn primary" id="btnEstAdd">➕ Adicionar ao estoque</button></div><div id="stEst" class="st"></div>
+   </div>
+   <div class="card"><h2>📋 Materiais em estoque <span id="estTot" style="float:right;font-size:13px;color:#0e6b31;font-weight:800"></span></h2>
+    <div id="listaEstoque"><div class="hint">carregando…</div></div>
+   </div>
+   <div class="card"><h2>📤 Gerar nota de saída</h2>
+    <div class="vsub" style="margin:0 0 8px">Selecione os materiais retirados do estoque e o destino.</div>
+    <div id="saidaRows"></div>
+    <div class="actions" style="margin:6px 0"><button class="btn ghost sm" id="btnSaidaAdd">➕ Adicionar material à saída</button></div>
+    <div class="frow two"><div><label>Destino</label><select id="sd_tipo"><option value="Obra">Obra (gera custo na obra)</option><option value="Avulsa">Saída avulsa (venda — a receber)</option></select></div><div id="sd_obraWrap"><label>Obra</label><select id="sd_obra"><option value="">— selecione a obra —</option></select></div></div>
+    <div id="sd_avulsaWrap" style="display:none"><div class="frow two"><div><label>Cliente (venda avulsa)</label><input id="sd_cliente"></div><div><label>Valor da venda — a receber (R$)</label><input id="sd_venda" type="number" step="0.01"></div></div><div class="hint" style="margin:0 0 6px">O valor da venda já vem preenchido com o custo dos materiais — ajuste para o preço de venda, se quiser.</div></div>
+    <div id="sd_resumo" class="hint" style="margin:6px 0"></div>
+    <div class="actions"><button class="btn primary" id="btnGerarSaida">📄 Gerar nota de saída</button></div><div id="stSaida" class="st"></div>
+   </div>
+  </section>
+
   <!-- ===================== USUÁRIOS ===================== -->
   <section class="view" id="usuarios">
    <div class="vhead"><h1>Usuários e acessos</h1><span class="tag">Login</span></div>
@@ -448,6 +472,7 @@ document.querySelectorAll('.navitem').forEach(function(n){n.onclick=function(){
   if(v==='orcamento')carregarOrc(); if(v==='obra')carregarObras(); if(v==='posvenda'){carregarPos();carregarMonit();}
   if(v==='marketing')carregarMkt(); if(v==='manutencoes')carregarManut(); if(v==='equipes')carregarEq();
   if(v==='contratos')carregarContratos(); if(v==='dados')carregarDados(); if(v==='usuarios')carregarUsuarios();
+  if(v==='estoque')carregarEstoque();
   _abrirSetor(n);
 };});
 ['s_data','e_data','o_data','pv_data','mn_data'].forEach(function(id){try{$(id).value=hojeISO();}catch(e){}});
@@ -955,6 +980,110 @@ async function carregarEq(){const {data,error}=await sb.from('equipes').select('
     d.querySelector('.bx').onclick=async function(){if(!confirm('Remover '+e.nome+'?'))return;await sb.from('equipes').delete().eq('id',e.id);carregarEq();};$('listaEq').appendChild(d);});}
 $('btnEqRefresh').onclick=carregarEq;
 
+/* ==================== ESTOQUE ==================== */
+var _estoqueCache=[]; var _saidaRows=[]; var _estObras=[];
+function _fmtQtd(q){ q=(+q)||0; return (Math.round(q*100)/100).toLocaleString('pt-BR'); }
+function _estTotalGeral(){ var t=0; _estoqueCache.forEach(function(e){ t+=((+e.quantidade)||0)*((+e.valor_unit)||0); }); return Math.round(t*100)/100; }
+async function carregarEstoque(){
+  var box=$('listaEstoque'); if(!box) return;
+  var r=await sb.from('estoque').select('*').order('material',{ascending:true});
+  if(r.error){ box.innerHTML='<div class="st show err">Erro ao carregar (a tabela "estoque" já existe? rode o SQL enviado): '+r.error.message+'</div>'; return; }
+  _estoqueCache=r.data||[];
+  try{ var ro=await sb.from('obras').select('id,cliente,projeto').order('id',{ascending:false}); _estObras=(ro&&ro.data)||[]; }catch(e){ _estObras=[]; }
+  renderEstoqueList(); _estPreencherObras(); if(!_saidaRows.length)_saidaRows=[{estoque_id:'',qtd:1}]; renderSaidaRows();
+}
+function renderEstoqueList(){
+  var box=$('listaEstoque'); if(!box) return; box.innerHTML='';
+  if(!_estoqueCache.length){ box.innerHTML='<div class="hint">Nenhum material no estoque. Registre acima.</div>'; var e0=$('estTot'); if(e0)e0.textContent=''; return; }
+  _estoqueCache.forEach(function(e){
+    var sub=((+e.quantidade)||0)*((+e.valor_unit)||0);
+    var d=document.createElement('div'); d.className='item';
+    d.innerHTML='<div class="t">'+esc(e.material)+'</div><div class="sub">Em estoque: <b>'+_fmtQtd(e.quantidade)+'</b> · Unit: '+brl(e.valor_unit)+' · Total: <b style="color:#0e6b31">'+brl(sub)+'</b></div>'
+      +'<div class="act"><input class="eQ" type="number" step="0.01" value="'+(e.quantidade!=null?e.quantidade:0)+'" style="width:90px" title="Quantidade"><input class="eV" type="number" step="0.01" value="'+(e.valor_unit!=null?e.valor_unit:0)+'" style="width:100px" title="Valor unitário"><button class="btn ghost sm eSave">💾</button><button class="btn ghost sm eDel" style="color:#c0392b">🗑</button></div>';
+    d.querySelector('.eSave').onclick=async function(){ await sb.from('estoque').update({quantidade:(+d.querySelector('.eQ').value)||0, valor_unit:(+d.querySelector('.eV').value)||0}).eq('id',e.id); carregarEstoque(); };
+    d.querySelector('.eDel').onclick=async function(){ if(!confirm('Remover "'+e.material+'" do estoque?'))return; await sb.from('estoque').delete().eq('id',e.id); carregarEstoque(); };
+    box.appendChild(d);
+  });
+  var et=$('estTot'); if(et)et.textContent='Total em estoque: '+brl(_estTotalGeral());
+}
+function _estPreencherObras(){ var sel=$('sd_obra'); if(!sel)return; sel.innerHTML='<option value="">— selecione a obra —</option>'; _estObras.forEach(function(o){ var op=document.createElement('option'); op.value=o.id; op.textContent=(o.cliente||'(sem nome)')+(o.projeto?(' · '+o.projeto):''); sel.appendChild(op); }); }
+function _estOptions(selId){ var o='<option value="">— material —</option>'; _estoqueCache.forEach(function(e){ o+='<option value="'+e.id+'"'+(String(selId)===String(e.id)?' selected':'')+'>'+esc(e.material)+' (em estoque: '+_fmtQtd(e.quantidade)+')</option>'; }); return o; }
+function _estById(id){ return _estoqueCache.filter(function(x){return String(x.id)===String(id);})[0]; }
+function renderSaidaRows(){
+  var box=$('saidaRows'); if(!box)return; box.innerHTML='';
+  if(!_saidaRows.length){ box.innerHTML='<div class="hint">Clique em "Adicionar material à saída".</div>'; _saidaResumo(); return; }
+  _saidaRows.forEach(function(row,idx){
+    var e=_estById(row.estoque_id); var disp=e?((+e.quantidade)||0):0; var vu=e?((+e.valor_unit)||0):0;
+    var r=document.createElement('div'); r.style.cssText='display:grid;grid-template-columns:1fr 90px 120px 30px;gap:6px;align-items:center;margin-bottom:5px';
+    r.innerHTML='<select class="sMat" style="font-size:12.5px">'+_estOptions(row.estoque_id)+'</select><input class="sQ" type="number" min="0" step="0.01" value="'+(row.qtd||0)+'" style="font-size:12.5px" title="Qtd a retirar"><div class="sSub" style="font-size:12px;text-align:right;color:#0e6b31;font-weight:700"></div><button class="btn ghost sDel" style="padding:4px 7px;color:#c0392b">🗑</button>';
+    r.querySelector('.sMat').onchange=function(){ _saidaRows[idx].estoque_id=this.value; renderSaidaRows(); };
+    r.querySelector('.sQ').oninput=function(){ _saidaRows[idx].qtd=(+this.value)||0; _saidaResumo(); r.querySelector('.sSub').textContent=brl((_saidaRows[idx].qtd)*vu)+((_saidaRows[idx].qtd)>disp?' ⚠':''); };
+    r.querySelector('.sDel').onclick=function(){ _saidaRows.splice(idx,1); renderSaidaRows(); };
+    box.appendChild(r); r.querySelector('.sSub').textContent=brl((row.qtd||0)*vu)+((row.qtd||0)>disp?' ⚠':'');
+  });
+  _saidaResumo();
+}
+function _saidaTotal(){ var t=0; _saidaRows.forEach(function(row){ var e=_estById(row.estoque_id); if(e)t+=((+row.qtd)||0)*((+e.valor_unit)||0); }); return Math.round(t*100)/100; }
+function _saidaResumo(){
+  var el=$('sd_resumo'); if(!el)return; var t=_saidaTotal(); var aviso='';
+  _saidaRows.forEach(function(row){ var e=_estById(row.estoque_id); if(e&&(+row.qtd)>(+e.quantidade)) aviso+=' ⚠ '+esc(e.material)+': retirada ('+_fmtQtd(row.qtd)+') maior que o estoque ('+_fmtQtd(e.quantidade)+').'; });
+  el.innerHTML='Custo total dos materiais da saída: <b>'+brl(t)+'</b>'+(aviso?'<br><span style="color:#c0392b">'+aviso+'</span>':'');
+  if($('sd_tipo')&&$('sd_tipo').value==='Avulsa'){ var vv=$('sd_venda'); if(vv&&(!vv.value||+vv.value===0)) vv.value=t; }
+}
+function _htmlNotaSaida(d){
+  var rows=''; (d.itens||[]).forEach(function(it,i){ rows+='<tr><td class="c">'+(i+1)+'</td><td>'+esc(it.material)+'</td><td class="c">'+_fmtQtd(it.qtd)+'</td><td class="r">'+brl(it.valor_unit)+'</td><td class="r">'+brl((it.qtd||0)*(it.valor_unit||0))+'</td></tr>'; });
+  var css='*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#333;-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:12mm}'
+   +'.hd{display:flex;align-items:center;gap:12px;border-bottom:3px solid #1aa64d;padding-bottom:8px;margin-bottom:6px}.hd img{height:16mm}.hd .co{font-size:8.6pt;color:#555;line-height:1.35}.hd .co b{color:#0e6b31;font-size:10.5pt}'
+   +'.tt{font-size:17pt;font-weight:900;color:#0e6b31;margin:5mm 0 1mm}.meta{font-size:10pt;color:#444;margin-bottom:4mm}.meta b{color:#111}'
+   +'table{width:100%;border-collapse:collapse;font-size:10pt;margin-top:2mm}th{background:#0e6b31;color:#fff;padding:2.4mm;text-align:left}th.c,td.c{text-align:center}th.r,td.r{text-align:right}td{padding:2.4mm;border-bottom:1px solid #ececec}tbody tr:nth-child(even) td{background:#f6faf7}'
+   +'.tot{margin-top:4mm;text-align:right;font-size:12pt;font-weight:800;color:#0e6b31}.sign{display:flex;justify-content:space-around;margin-top:18mm;gap:10mm}.sign .s{flex:1;text-align:center}.sign .ln{border-top:1.5px solid #333;margin-bottom:2mm}.foot{margin-top:8mm;font-size:8pt;color:#999;border-top:1px solid #ddd;padding-top:3mm;text-align:center}';
+  var H='<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Nota de Saída '+esc(d.numero||'')+'</title><style>'+css+'</style></head><body>';
+  H+='<div class="hd"><img src="'+ASSETS.logo+'"><div class="co"><b>SUDOESTE SOLUÇÕES ELÉTRICAS LTDA — UNIÃO SUDOESTE SOLAR</b><br>CNPJ: 51.045.101/0001-10 · Av. Juracy Magalhães, 3340 A, Sala 508, Felícia<br>Vitória da Conquista – BA · (77) 99975-0486</div></div>';
+  H+='<div class="tt">NOTA DE SAÍDA DE MATERIAL</div>';
+  H+='<div class="meta"><b>Nº:</b> '+esc(d.numero||'—')+' &nbsp;·&nbsp; <b>Data:</b> '+_dBRr(d.data)+'<br><b>Destino:</b> '+esc(d.destino||'—')+'</div>';
+  H+='<table><thead><tr><th class="c">#</th><th>Material</th><th class="c">Qtd</th><th class="r">Valor unit.</th><th class="r">Total</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  H+='<div class="tot">Total: '+brl(d.total||0)+'</div>';
+  H+='<div class="sign"><div class="s"><div class="ln"></div><div style="font-weight:700;color:#0e6b31;font-size:9.5pt">UNIÃO SUDOESTE SOLAR</div><div style="font-size:8pt;color:#888">Responsável pela saída</div></div><div class="s"><div class="ln"></div><div style="font-weight:700;color:#0e6b31;font-size:9.5pt">'+esc(d.recebedor||'Recebedor')+'</div><div style="font-size:8pt;color:#888">Recebeu o material</div></div></div>';
+  H+='<div class="foot">Nota de saída emitida pela Central União Sudoeste Solar · '+_dBRr(d.data)+'</div></body></html>';
+  return H;
+}
+function _abrirNota(d){ var html=_htmlNotaSaida(d); var w=window.open('','_blank'); if(!w) return; w.document.open(); w.document.write(html); w.document.close(); setTimeout(function(){try{w.focus();w.print();}catch(e){}},600); }
+async function _gerarNotaSaida(){
+  var st=$('stSaida'); var itens=[]; var falta='';
+  _saidaRows.forEach(function(row){ var e=_estById(row.estoque_id); if(e&&(+row.qtd)>0){ itens.push({estoque_id:e.id, material:e.material, qtd:(+row.qtd), valor_unit:(+e.valor_unit)||0}); if((+row.qtd)>(+e.quantidade)) falta+=e.material+' '; } });
+  if(!itens.length){ stMsg(st,'err','Adicione ao menos um material com quantidade.'); return; }
+  if(falta){ if(!confirm('Atenção: a quantidade retirada é maior que o estoque de: '+falta+'\nContinuar mesmo assim (o estoque ficará negativo)?')) return; }
+  var tipo=$('sd_tipo').value; var total=_saidaTotal(); var hoje=hojeISO(); var obra=null, destino='';
+  if(tipo==='Obra'){ var oid=$('sd_obra').value; if(!oid){ stMsg(st,'err','Selecione a obra de destino.'); return; } obra=_estObras.filter(function(o){return String(o.id)===String(oid);})[0]; destino='Obra · '+((obra&&obra.cliente)||''); }
+  else { destino='Venda avulsa'+(($('sd_cliente').value||'').trim()?(' · '+$('sd_cliente').value.trim()):''); }
+  stMsg(st,'wait','Gerando nota e atualizando estoque…');
+  try{
+    for(var i=0;i<itens.length;i++){ var e=_estById(itens[i].estoque_id); var novo=Math.round((((+e.quantidade)||0)-itens[i].qtd)*100)/100; await sb.from('estoque').update({quantidade:novo}).eq('id',e.id); }
+    var venda = tipo==='Avulsa' ? ((+$('sd_venda').value)||total) : null;
+    var insS=await sb.from('estoque_saidas').insert({data:hoje,tipo:tipo,obra_id:(obra?obra.id:null),cliente:(tipo==='Obra'?((obra&&obra.cliente)||''):($('sd_cliente').value||'').trim()),itens:itens,valor_total:total,valor_venda:venda}).select();
+    var saidaId=(insS&&insS.data&&insS.data[0]&&insS.data[0].id)||null;
+    var d={numero:_osNumero('NS', saidaId), data:hoje, destino:destino, itens:itens, total:total, recebedor:(tipo==='Obra'?((obra&&obra.cliente)||''):($('sd_cliente').value||'').trim())};
+    _abrirNota(d);
+    var extra='';
+    if(tipo==='Obra'){
+      var roo=await sb.from('obras').select('*').eq('id',obra.id); var ob=(roo&&roo.data&&roo.data[0])||null;
+      if(ob){ var mats=(ob.materiais||[]).slice(); itens.forEach(function(it){ mats.push({descricao:it.material+' (estoque)', qtd:it.qtd, valorUnit:it.valor_unit, origem:'estoque'}); }); await sb.from('obras').update({materiais:mats}).eq('id',ob.id); ob.materiais=mats; var mf=await _reconciliarCustoObra(ob); extra=' Custo adicionado à obra.'+(mf||''); }
+    } else {
+      var ma=mesAno(hoje); await sb.from('financeiro').insert({tipo:'Entrada',status:'Em aberto',data_prevista:hoje,cliente_fornecedor:($('sd_cliente').value||'').trim(),descricao:'Venda de material (saída avulsa)',valor:venda,origem:'Estoque',mes:ma.mes,ano:ma.ano}); extra=' Lançado '+brl(venda)+' como a receber no financeiro.';
+    }
+    _saidaRows=[{estoque_id:'',qtd:1}]; if($('sd_cliente'))$('sd_cliente').value=''; if($('sd_venda'))$('sd_venda').value='';
+    carregarEstoque(); if(typeof carregarFin==='function')carregarFin();
+    stMsg(st,'ok','✓ Nota de saída gerada e estoque atualizado.'+extra);
+  }catch(e){ stMsg(st,'err','Erro: '+(e&&e.message||e)); }
+}
+(function(){
+  var a=$('btnEstAdd'); if(a) a.onclick=async function(){ var st=$('stEst'); var nome=($('est_nome').value||'').trim(); if(!nome){ stMsg(st,'err','Informe o nome do material.'); return; } var r=await sb.from('estoque').insert({material:nome,quantidade:(+$('est_qtd').value)||0,valor_unit:(+$('est_vu').value)||0}); if(r&&r.error){ stMsg(st,'err','Erro: '+r.error.message); return; } stMsg(st,'ok','✓ Material adicionado ao estoque.'); $('est_nome').value='';$('est_qtd').value='';$('est_vu').value=''; carregarEstoque(); };
+  var rf=$('btnEstRefresh'); if(rf) rf.onclick=carregarEstoque;
+  var sa=$('btnSaidaAdd'); if(sa) sa.onclick=function(){ _saidaRows.push({estoque_id:'',qtd:1}); renderSaidaRows(); };
+  var gt=$('btnGerarSaida'); if(gt) gt.onclick=_gerarNotaSaida;
+  var tp=$('sd_tipo'); if(tp) tp.onchange=function(){ var ob=$('sd_obraWrap'),av=$('sd_avulsaWrap'); if(this.value==='Avulsa'){ if(ob)ob.style.display='none'; if(av)av.style.display='block'; } else { if(ob)ob.style.display='block'; if(av)av.style.display='none'; } _saidaResumo(); };
+})();
+
 /* ==================== INIT ==================== */
 function initColapsavel(){
   document.querySelectorAll('.view .card').forEach(function(card){
@@ -1361,7 +1490,21 @@ function matTotal(){var t=0;matData.forEach(function(m){t+=((+m.qtd)||0)*((+m.va
 function matResumo(){var el2=$('matResumo');if(!el2)return;var mat=matTotal(),orc=(+$('obraOrc').value)||0;var txt='Material comprado (real): <b>'+brl(mat)+'</b>';if(orc>0){var dif=mat-orc;txt+=' · Previsto: '+brl(orc)+' · <span style="color:'+(dif>0?'#c0392b':'#0e6b31')+'">'+(dif>0?'estourou ':'economia ')+brl(Math.abs(dif))+'</span>';}el2.innerHTML=txt;}
 function renderMat(){var box=$('matRows');if(!box)return;if(!matData.length){box.innerHTML='<div class="hint" style="margin:4px 0">Nenhum item ainda. Clique em ➕ Adicionar item.</div>';matResumo();return;}box.innerHTML='';matData.forEach(function(m,idx){var r=document.createElement('div');r.style.cssText='display:grid;grid-template-columns:1fr 62px 96px 96px 30px;gap:6px;align-items:center;margin-bottom:5px';r.innerHTML='<input class="mDesc" placeholder="Descrição do material" value="'+esc(m.descricao||'')+'" style="font-size:12.5px"><input class="mQtd" type="number" min="0" step="1" value="'+(m.qtd||0)+'" style="font-size:12.5px"><input class="mVu" type="number" min="0" step="0.01" value="'+(m.valorUnit||0)+'" style="font-size:12.5px"><div class="mSub" style="font-size:12px;font-weight:700;text-align:right;color:#0e6b31"></div><button class="btn ghost mDel" style="padding:4px 7px;font-size:12px;color:#c0392b">🗑</button>';r.querySelector('.mDesc').oninput=function(){matData[idx].descricao=this.value;};r.querySelector('.mQtd').oninput=function(){matData[idx].qtd=(+this.value)||0;matResumo();r.querySelector('.mSub').textContent=brl((matData[idx].qtd)*(matData[idx].valorUnit));};r.querySelector('.mVu').oninput=function(){matData[idx].valorUnit=(+this.value)||0;matResumo();r.querySelector('.mSub').textContent=brl((matData[idx].qtd)*(matData[idx].valorUnit));};r.querySelector('.mDel').onclick=function(){matData.splice(idx,1);renderMat();};box.appendChild(r);r.querySelector('.mSub').textContent=brl((m.qtd||0)*(m.valorUnit||0));});matResumo();}
 function analiseObra(){var receita=(+$('obraReceita').value)||0;var material=matTotal();var servico=_num2(current&&current.valor_servico);var previsto=(+$('obraOrc').value)||0;var custo=material+servico;var lucro=receita-custo;var margem=receita>0?lucro/receita:null;return {receita:receita,material:material,servico:servico,previsto:previsto,custo:custo,lucro:lucro,margem:margem};}
-async function salvarCustos(){var st=$('custosStatus'),b=$('btnSalvarCustos');stMsg(st,'wait','Salvando custos…');b.disabled=true;var prev=(+$('obraOrc').value)||null,rec=(+$('obraReceita').value)||null;var res=await sb.from('obras').update({materiais:matData,orcamento_previsto:prev,receita_disponivel:rec}).eq('id',current.id);if(res.error){stMsg(st,'err','Erro: '+res.error.message);}else{current.materiais=matData.slice();current.orcamento_previsto=prev;current.receita_disponivel=rec;stMsg(st,'ok','✓ Custos salvos no banco.');}b.disabled=false;}
+async function _reconciliarCustoObra(obra){
+  try{
+    var tot=0; (obra.materiais||[]).forEach(function(m){ tot+=((+m.qtd)||0)*((+m.valorUnit)||0); }); tot=Math.round(tot*100)/100;
+    var jaLanc=Math.round(((+obra.custo_lancado)||0)*100)/100;
+    var delta=Math.round((tot-jaLanc)*100)/100;
+    if(delta>0.009){
+      var hoje=hojeISO(), ma=mesAno(hoje);
+      await sb.from('financeiro').insert({tipo:'Saída',status:'Pago',data_prevista:hoje,data_realizada:hoje,cliente_fornecedor:obra.cliente||'',descricao:'MATERIAL - OBRA '+String(obra.cliente||'').toUpperCase(),categoria:'Variável',valor:delta,origem:'Obra',mes:ma.mes,ano:ma.ano});
+      await sb.from('obras').update({custo_lancado:tot}).eq('id',obra.id); obra.custo_lancado=tot;
+      return ' 💰 Lancei '+brl(delta)+' como "MATERIAL - OBRA" no financeiro.';
+    }
+    return '';
+  }catch(e){ return ' (obs: não consegui lançar no financeiro — rode o SQL de estoque que adiciona a coluna custo_lancado. '+(e&&e.message||e)+')'; }
+}
+async function salvarCustos(){var st=$('custosStatus'),b=$('btnSalvarCustos');stMsg(st,'wait','Salvando custos…');b.disabled=true;var prev=(+$('obraOrc').value)||null,rec=(+$('obraReceita').value)||null;var res=await sb.from('obras').update({materiais:matData,orcamento_previsto:prev,receita_disponivel:rec}).eq('id',current.id);if(res.error){stMsg(st,'err','Erro: '+res.error.message);}else{current.materiais=matData.slice();current.orcamento_previsto=prev;current.receita_disponivel=rec;var msgFin=await _reconciliarCustoObra(current);stMsg(st,'ok','✓ Custos salvos no banco.'+(msgFin||''));if(msgFin&&typeof carregarFin==='function')carregarFin();}b.disabled=false;}
 function gerarAnaliseObra(){var st=$('custosStatus');var a=analiseObra();if(!(a.receita>0)){stMsg(st,'err','Digite a "Receita disponível da obra" para calcular a rentabilidade.');return;}var html=buildAnaliseHTML(a);var w=window.open('','_blank');if(!w){stMsg(st,'err','Permita pop-ups (janelas) para gerar a análise em PDF.');return;}w.document.open();w.document.write(html);w.document.close();setTimeout(function(){try{w.focus();w.print();}catch(e){}},700);stMsg(st,'ok',a.lucro>=0?('📊 Análise gerada — lucro de '+brl(a.lucro)+'.'):('📊 Análise gerada — PREJUÍZO de '+brl(Math.abs(a.lucro))+'.'));}
 /* ---- Leitor de NF (OCR no navegador) ---- */
 function _loadTesseract(cb){
