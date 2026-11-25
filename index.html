@@ -144,29 +144,42 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
    <div class="vhead"><h1>Financeiro</h1><span class="tag">Ativo · Supabase</span></div>
    <div class="vsub">Fluxo de caixa salvo direto no seu banco de dados. Lance gastos e entradas, controle contas a pagar e valide recebimentos — sem Google.</div>
    <div class="card" style="margin-bottom:16px"><h2>🎯 Metas do mês</h2><div id="metas"><div class="hint">carregando…</div></div></div>
-   <div class="card" style="margin-bottom:16px"><h2>📊 Resumo <span style="float:right;display:inline-flex;gap:6px;align-items:center"><input type="month" id="finMesSel" style="padding:5px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:13px"><button class="btn ok sm" id="btnDRE">📄 Gerar DRE</button> <button class="btn ghost sm" id="btnRefresh">↻ Atualizar</button></span></h2><div id="resumo" class="finstats"><div class="hint">carregando…</div></div></div>
+   <div class="card" style="margin-bottom:16px"><h2>📊 Resumo <span style="float:right;display:inline-flex;gap:6px;align-items:center"><input type="month" id="finMesSel" style="padding:5px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:13px"><button class="btn primary sm" id="btnConferir">🔍 Conferir lançamentos</button><button class="btn ok sm" id="btnDRE">📄 Gerar DRE</button> <button class="btn ghost sm" id="btnRefresh">↻ Atualizar</button></span></h2><div id="resumo" class="finstats"><div class="hint">carregando…</div></div></div>
+   <div class="card"><h2>➕ Novo lançamento</h2>
+    <div class="vsub" style="margin:0 0 8px">Espaço único para gastos e recebimentos.</div>
+    <div class="frow two"><div><label>Tipo</label><select id="nl_tipo"><option value="Saída">Gasto (saída)</option><option value="Entrada">Recebimento (entrada)</option></select></div><div><label>Situação</label><select id="nl_sit"><option value="feito">Já pago / recebido</option><option value="aberto">Em aberto (a pagar / a receber)</option></select></div></div>
+    <div class="frow"><label>Descrição</label><input id="nl_desc" placeholder="Ex.: Combustível, Manutenção cliente X"></div>
+    <div class="frow two"><div><label>Cliente / Fornecedor</label><input id="nl_quem"></div><div><label>Data de execução</label><input id="nl_data" type="date"></div></div>
+    <div class="frow two"><div><label>Centro de custo</label><input id="nl_cc" placeholder="Ex.: Obra João, Escritório, Veículo"></div><div><label>De qual conta partiu</label><input id="nl_conta" placeholder="Ex.: Conta PJ, Caixa"></div></div>
+    <div class="frow two"><div><label>Método de pagamento</label><select id="nl_metodo"><option>Dinheiro</option><option>PIX</option><option>Cartão de débito</option><option>Cartão de crédito</option><option>Transferência</option><option>Boleto</option><option>Outro</option></select></div><div><label>Classificação</label><select id="nl_cat"><option>Variável</option><option>Fixo</option></select></div></div>
+    <div class="frow" id="nl_valorWrap"><label>Valor (R$)</label><input id="nl_valor" type="number" step="0.01"></div>
+    <div id="nl_cartaoWrap" style="display:none;border:1.5px solid var(--line);border-radius:10px;padding:10px;margin:4px 0;background:#fbf7ef">
+     <div style="font-weight:700;font-size:12px;color:#5a6a60;margin-bottom:6px">💳 Parcelamento no cartão de crédito</div>
+     <div class="frow two"><div><label>Valor total (R$)</label><input id="nl_total" type="number" step="0.01"></div><div><label>Nº de parcelas</label><input id="nl_parc" type="number" min="1" step="1" value="1"></div></div>
+     <div class="frow"><label>Data da 1ª parcela</label><input id="nl_parc1" type="date"></div>
+     <div class="hint" id="nl_parcHint"></div>
+    </div>
+    <div class="actions"><button class="btn primary" id="btnNovoLanc">➕ Lançar</button></div><div id="stNovoLanc" class="st"></div>
+   </div>
+   <div class="card"><h2>📌 Gastos fixos</h2>
+    <div class="vsub" style="margin:0 0 8px">Despesas recorrentes ficam aqui à vista. Clique no botão da recorrência para lançar a ocorrência no financeiro.</div>
+    <div class="frow two"><div><label>Descrição</label><input id="gf_desc"></div><div><label>Valor (R$)</label><input id="gf_valor" type="number" step="0.01"></div></div>
+    <div class="frow two"><div><label>Recorrência</label><select id="gf_rec"><option>Mensal</option><option>Semanal</option><option>Quinzenal</option><option>Bimestral</option><option>Trimestral</option><option>Semestral</option><option>Anual</option></select></div><div><label>Conta</label><input id="gf_conta"></div></div>
+    <div class="frow two"><div><label>Centro de custo</label><input id="gf_cc"></div><div><label>Método</label><input id="gf_metodo" placeholder="Ex.: Débito automático"></div></div>
+    <div class="actions"><button class="btn primary sm" id="btnGfAdd">➕ Cadastrar gasto fixo</button></div><div id="stGf" class="st"></div>
+    <div id="listaFixos" style="margin-top:10px"><div class="hint">carregando…</div></div>
+   </div>
+   <div class="card"><h2>🧾 Boletos</h2>
+    <div class="vsub" style="margin:0 0 8px">Cadastre boletos. Sinalize o pagamento e, só quando quiser, adicione como gasto ou recebimento no financeiro.</div>
+    <div class="frow two"><div><label>Descrição</label><input id="bo_desc"></div><div><label>Valor (R$)</label><input id="bo_valor" type="number" step="0.01"></div></div>
+    <div class="frow two"><div><label>Vencimento</label><input id="bo_venc" type="date"></div><div><label>Tipo</label><select id="bo_tipo"><option value="Gasto">Gasto (saída)</option><option value="Recebimento">Recebimento (entrada)</option></select></div></div>
+    <div class="frow two"><div><label>Conta</label><input id="bo_conta"></div><div><label>Centro de custo</label><input id="bo_cc"></div></div>
+    <div class="actions"><button class="btn primary sm" id="btnBoAdd">➕ Cadastrar boleto</button></div><div id="stBo" class="st"></div>
+    <div id="listaBoletos" style="margin-top:10px"><div class="hint">carregando…</div></div>
+   </div>
    <div class="grid">
-    <div class="card"><h2>➖ Registrar gasto</h2>
-     <div class="frow two"><div><label>Data</label><input id="s_data" type="date"></div><div><label>Tipo</label><select id="s_cat"><option>Variável</option><option>Fixo</option></select></div></div>
-     <div class="frow"><label>Onde foi / fornecedor</label><input id="s_onde" placeholder="Ex.: Posto, Solfácil"></div>
-     <div class="frow"><label>O que foi</label><input id="s_desc" placeholder="Ex.: Combustível"></div>
-     <div class="frow two"><div><label>Conta</label><input id="s_conta" placeholder="Ex.: Conta PJ"></div><div><label>Valor (R$)</label><input id="s_valor" type="number" step="0.01"></div></div>
-     <div class="actions"><button class="btn primary" id="btnSaida">➖ Lançar gasto</button></div><div id="stSaida" class="st"></div></div>
-    <div class="card"><h2>➕ Entrada avulsa</h2>
-     <div class="frow two"><div><label>Data</label><input id="e_data" type="date"></div><div><label>Situação</label><select id="e_status"><option value="sim">Já recebida</option><option value="nao">A receber</option></select></div></div>
-     <div class="frow"><label>Cliente</label><input id="e_cliente" placeholder="Ex.: João"></div>
-     <div class="frow"><label>Descrição</label><input id="e_desc" placeholder="Ex.: Manutenção"></div>
-     <div class="frow two"><div><label>Conta</label><input id="e_conta"></div><div><label>Valor (R$)</label><input id="e_valor" type="number" step="0.01"></div></div>
-     <div class="actions"><button class="btn primary" id="btnEntrada">➕ Lançar entrada</button></div><div id="stEntrada" class="st"></div></div>
-    <div class="card"><h2>🧾 Registrar conta a pagar</h2>
-     <div class="frow two"><div><label>Valor (R$)</label><input id="c_valor" type="number" step="0.01"></div><div><label>Vencimento</label><input id="c_venc" type="date"></div></div>
-     <div class="frow"><label>Para onde (fornecedor)</label><input id="c_dest" placeholder="Ex.: Solfácil"></div>
-     <div class="frow"><label>O que é</label><input id="c_desc"></div>
-     <div class="frow two"><div><label>Nº boleto</label><input id="c_boleto" placeholder="Opcional"></div><div><label>Conta</label><input id="c_conta"></div></div>
-     <div class="actions"><button class="btn primary" id="btnConta">🧾 Registrar conta</button></div><div id="stConta" class="st"></div></div>
     <div class="card"><h2>📤 Contas a pagar <span id="cpTot" style="float:right;font-size:13px;color:#b9770e;font-weight:800"></span></h2><div id="listaContas"><div class="hint">carregando…</div></div></div>
     <div class="card"><h2>📥 Recebimentos em aberto</h2><div id="listaAberto"><div class="hint">carregando…</div></div></div>
-    <div class="card"><h2 id="tituloLanc">🧾 Lançamentos do mês</h2><div id="listaUltimos"><div class="hint">carregando…</div></div></div>
    </div>
   </section>
 
@@ -403,10 +416,19 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--g)}
     <div class="frow"><label>Cliente / Fornecedor / Onde</label><input id="fe_onde"></div>
     <div class="frow two"><div><label>Valor (R$)</label><input id="fe_valor" type="number" step="0.01"></div><div><label>Mês de competência</label><input id="fe_comp" type="month"></div></div>
     <div class="frow two"><div><label>Categoria</label><select id="fe_cat"><option value=""></option><option>Variável</option><option>Fixo</option></select></div><div><label>Conta</label><input id="fe_conta"></div></div>
+    <div class="frow two"><div><label>Centro de custo</label><input id="fe_cc"></div><div><label>Método de pagamento</label><input id="fe_metodo"></div></div>
     <div class="frow two"><div><label>Data realizada</label><input id="fe_dreal" type="date"></div><div><label>Data prevista</label><input id="fe_dprev" type="date"></div></div>
     <div class="frow"><label>Boleto / observação</label><input id="fe_boleto"></div>
     <div class="actions" style="margin-top:8px"><button class="btn primary sm" id="feSalvar">💾 Salvar</button><button class="btn ghost sm" id="feFechar">Cancelar</button></div>
     <div id="feStatus" class="st"></div>
+  </div>
+</div>
+
+<div id="conferirModal" style="display:none;position:fixed;inset:0;z-index:9997;background:rgba(0,0,0,.45);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:14px;padding:18px;width:640px;max-width:95vw;max-height:88vh;overflow:auto">
+    <h2 id="tituloLanc" style="margin:0 0 10px;color:#0e6b31">🧾 Lançamentos do mês</h2>
+    <div id="listaConferir"><div class="hint">carregando…</div></div>
+    <div class="actions" style="margin-top:12px"><button class="btn ghost" id="btnConferirFechar">Fechar</button></div>
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -475,7 +497,7 @@ document.querySelectorAll('.navitem').forEach(function(n){n.onclick=function(){
   if(v==='estoque')carregarEstoque();
   _abrirSetor(n);
 };});
-['s_data','e_data','o_data','pv_data','mn_data'].forEach(function(id){try{$(id).value=hojeISO();}catch(e){}});
+['nl_data','o_data','pv_data','mn_data'].forEach(function(id){try{$(id).value=hojeISO();}catch(e){}});
 
 async function testarConexao(){
   try{ const {error}=await sb.from('financeiro').select('id',{count:'exact',head:true}); if(error)throw error;
@@ -488,27 +510,110 @@ async function testarConexao(){
 function _finMesSelecionado(){var sel=($('finMesSel')&&$('finMesSel').value)||'';var m,a;if(/^\d{4}-\d{2}$/.test(sel)){a=parseInt(sel.slice(0,4),10);m=parseInt(sel.slice(5,7),10);}else{var h=new Date();m=h.getMonth()+1;a=h.getFullYear();}return {mes:m,ano:a};}
 function _finDataPadrao(){var s=_finMesSelecionado();var h=new Date();if(s.mes===(h.getMonth()+1)&&s.ano===h.getFullYear())return hojeISO();return s.ano+'-'+('0'+s.mes).slice(-2)+'-01';}
 function _finDataEhDoMesSel(iso){if(!iso)return false;var s=_finMesSelecionado();var p=String(iso).slice(0,10);return p.slice(0,4)===(''+s.ano)&&parseInt(p.slice(5,7),10)===s.mes;}
-function _finSetDefaultDates(){var d=_finDataPadrao();['s_data','e_data','c_venc'].forEach(function(id){var el=$(id);if(!el)return;if(!el.value||!_finDataEhDoMesSel(el.value))el.value=d;});}
-$('btnSaida').onclick=async function(){const st=$('stSaida'),b=this;const valor=parseFloat($('s_valor').value);
-  if(!(valor>0)){stMsg(st,'err','Informe um valor válido.');return;}const data=$('s_data').value||_finDataPadrao(),ma=mesAno(data);
-  stMsg(st,'wait','Salvando…');b.disabled=true;
-  const {error}=await sb.from('financeiro').insert({tipo:'Saída',status:'Pago',data_prevista:data,data_realizada:data,cliente_fornecedor:$('s_onde').value.trim(),descricao:$('s_desc').value.trim(),categoria:$('s_cat').value,conta:$('s_conta').value.trim(),valor:valor,origem:'Manual',mes:ma.mes,ano:ma.ano});
-  if(error)stMsg(st,'err','Erro: '+error.message);else{stMsg(st,'ok','✓ Gasto lançado!');['s_onde','s_desc','s_valor','s_conta'].forEach(function(id){$(id).value='';});carregarFin();}b.disabled=false;};
-$('btnEntrada').onclick=async function(){const st=$('stEntrada'),b=this;const valor=parseFloat($('e_valor').value);
-  if(!(valor>0)){stMsg(st,'err','Informe um valor válido.');return;}const receb=$('e_status').value==='sim';const data=$('e_data').value||_finDataPadrao(),ma=mesAno(data);
-  stMsg(st,'wait','Salvando…');b.disabled=true;
-  const {error}=await sb.from('financeiro').insert({tipo:'Entrada',status:receb?'Recebido':'Em aberto',data_prevista:data,data_realizada:receb?data:null,cliente_fornecedor:$('e_cliente').value.trim(),descricao:$('e_desc').value.trim(),conta:$('e_conta').value.trim(),valor:valor,origem:'Manual',mes:ma.mes,ano:ma.ano});
-  if(error)stMsg(st,'err','Erro: '+error.message);else{stMsg(st,'ok','✓ Entrada lançada!');['e_cliente','e_desc','e_valor','e_conta'].forEach(function(id){$(id).value='';});carregarFin();}b.disabled=false;};
-$('btnConta').onclick=async function(){const st=$('stConta'),b=this;const valor=parseFloat($('c_valor').value);
-  if(!(valor>0)){stMsg(st,'err','Informe um valor válido.');return;}if(!$('c_dest').value.trim()){stMsg(st,'err','Informe para onde é.');return;}
-  const venc=$('c_venc').value||_finDataPadrao(),ma=mesAno(venc);stMsg(st,'wait','Salvando…');b.disabled=true;
-  const {error}=await sb.from('financeiro').insert({tipo:'Saída',status:'A pagar',data_prevista:venc,cliente_fornecedor:$('c_dest').value.trim(),descricao:$('c_desc').value.trim(),categoria:'Variável',conta:$('c_conta').value.trim(),valor:valor,origem:'Conta a pagar',boleto:$('c_boleto').value.trim(),mes:ma.mes,ano:ma.ano});
-  if(error)stMsg(st,'err','Erro: '+error.message);else{stMsg(st,'ok','✓ Conta registrada!');['c_valor','c_dest','c_desc','c_boleto','c_conta'].forEach(function(id){$(id).value='';});carregarFin();}b.disabled=false;};
+function _finSetDefaultDates(){var d=_finDataPadrao();['nl_data'].forEach(function(id){var el=$(id);if(!el)return;if(!el.value||!_finDataEhDoMesSel(el.value))el.value=d;});}
+function _addMeses(iso,n){var p=String(iso).slice(0,10).split('-');var d=new Date(parseInt(p[0],10),parseInt(p[1],10)-1+n,parseInt(p[2],10));return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+/* ---- Novo lançamento unificado ---- */
+(function(){
+  var m=$('nl_metodo');
+  function toggleCartao(){ var cc=($('nl_metodo').value==='Cartão de crédito'); if($('nl_cartaoWrap'))$('nl_cartaoWrap').style.display=cc?'block':'none'; if($('nl_valorWrap'))$('nl_valorWrap').style.display=cc?'none':'block'; _nlParcHint(); }
+  if(m) m.onchange=toggleCartao;
+  ['nl_total','nl_parc'].forEach(function(id){var e=$(id);if(e)e.oninput=_nlParcHint;});
+})();
+function _nlParcHint(){ var el=$('nl_parcHint'); if(!el)return; var tot=(+$('nl_total').value)||0, n=parseInt($('nl_parc').value,10)||1; if(n<1)n=1; if(tot>0){ el.textContent='Serão '+n+' parcela(s) de '+brl(Math.round(tot/n*100)/100)+' (uma por mês a partir da 1ª parcela).'; } else el.textContent=''; }
+$('btnNovoLanc').onclick=async function(){
+  var st=$('stNovoLanc'),b=this; var tipo=$('nl_tipo').value, ent=(tipo==='Entrada');
+  var desc=$('nl_desc').value.trim(), quem=$('nl_quem').value.trim(), cc=$('nl_cc').value.trim(), conta=$('nl_conta').value.trim(), metodo=$('nl_metodo').value, cat=$('nl_cat').value;
+  var sit=$('nl_sit').value, cartao=(metodo==='Cartão de crédito');
+  b.disabled=true;
+  try{
+    if(cartao){
+      var tot=(+$('nl_total').value)||0, n=parseInt($('nl_parc').value,10)||1; if(n<1)n=1;
+      var d1=$('nl_parc1').value||$('nl_data').value||_finDataPadrao();
+      if(!(tot>0)){ stMsg(st,'err','Informe o valor total do cartão.'); b.disabled=false; return; }
+      var base=Math.floor(tot/n*100)/100, resto=Math.round((tot-base*n)*100)/100, grupo='cc'+Date.now(), hoje=hojeISO(), linhas=[];
+      for(var i=1;i<=n;i++){ var dp=_addMeses(d1,i-1), ma=mesAno(dp), val=(i===n?Math.round((base+resto)*100)/100:base);
+        var pago=(dp<=hoje), status=ent?(pago?'Recebido':'Em aberto'):(pago?'Pago':'A pagar');
+        linhas.push({tipo:tipo,status:status,data_prevista:dp,data_realizada:pago?dp:null,cliente_fornecedor:quem,descricao:(desc||'Lançamento')+' (parcela '+i+'/'+n+')',categoria:cat,conta:conta,centro_custo:cc,metodo:metodo,parcelas:n,parcela_num:i,grupo_parcela:grupo,valor:val,origem:'Manual',mes:ma.mes,ano:ma.ano}); }
+      var r=await sb.from('financeiro').insert(linhas); if(r&&r.error)throw r.error;
+      stMsg(st,'ok','✓ Lançado em '+n+' parcela(s) no cartão.');
+    } else {
+      var valor=(+$('nl_valor').value)||0; if(!(valor>0)){ stMsg(st,'err','Informe um valor válido.'); b.disabled=false; return; }
+      var data=$('nl_data').value||_finDataPadrao(), ma2=mesAno(data), feito=(sit==='feito');
+      var status2=ent?(feito?'Recebido':'Em aberto'):(feito?'Pago':'A pagar');
+      var r2=await sb.from('financeiro').insert({tipo:tipo,status:status2,data_prevista:data,data_realizada:feito?data:null,cliente_fornecedor:quem,descricao:desc,categoria:cat,conta:conta,centro_custo:cc,metodo:metodo,valor:valor,origem:'Manual',mes:ma2.mes,ano:ma2.ano}); if(r2&&r2.error)throw r2.error;
+      stMsg(st,'ok','✓ '+(ent?'Recebimento':'Gasto')+' lançado!');
+    }
+    ['nl_desc','nl_quem','nl_cc','nl_conta','nl_valor','nl_total'].forEach(function(id){if($(id))$(id).value='';}); if($('nl_parc'))$('nl_parc').value='1'; _nlParcHint();
+    carregarFin();
+  }catch(e){ stMsg(st,'err','Erro: '+(e&&e.message||e)+' — rode o SQL do financeiro (colunas novas).'); }
+  b.disabled=false;
+};
 async function pagarConta(id){const data=hojeISO();const {error}=await sb.from('financeiro').update({status:'Pago',data_realizada:data}).eq('id',id);if(error)alert('Erro: '+error.message);else carregarFin();}
 async function receber(row,vin){const aberto=(+row.valor)||0;let rec=vin!==''&&vin!=null?parseFloat(vin):aberto;if(!(rec>0))rec=aberto;if(rec>aberto)rec=aberto;
   const hoje=hojeISO();
   const {error}=await sb.from('financeiro').update({status:'Recebido',data_realizada:hoje,valor:rec}).eq('id',row.id);if(error){alert('Erro: '+error.message);return;}
   const saldo=Math.round((aberto-rec)*100)/100;if(saldo>0){await sb.from('financeiro').insert({tipo:'Entrada',status:'Em aberto',data_prevista:row.data_prevista,cliente_fornecedor:row.cliente_fornecedor,descricao:(row.descricao||'')+' (saldo)',valor:saldo,origem:row.origem,mes:row.mes,ano:row.ano});}carregarFin();}
+/* ---- Conferir lançamentos (balão) ---- */
+function _abrirConferir(){ var m=$('conferirModal'); if(m) m.style.display='flex'; }
+(function(){ var b=$('btnConferir'); if(b) b.onclick=_abrirConferir; var f=$('btnConferirFechar'); if(f) f.onclick=function(){ var m=$('conferirModal'); if(m)m.style.display='none'; }; })();
+/* ---- GASTOS FIXOS ---- */
+async function carregarFixos(){
+  var box=$('listaFixos'); if(!box) return;
+  var r=await sb.from('gastos_fixos').select('*').order('id',{ascending:false});
+  if(r.error){ box.innerHTML='<div class="st show err">Crie a tabela (rode o SQL do financeiro). '+esc(r.error.message)+'</div>'; return; }
+  var data=(r.data||[]).filter(function(x){return x.ativo!==false;});
+  if(!data.length){ box.innerHTML='<div class="hint">Nenhum gasto fixo cadastrado.</div>'; return; }
+  box.innerHTML='';
+  data.forEach(function(g){
+    var d=document.createElement('div'); d.className='item';
+    var sub=[]; sub.push('Recorrência: '+esc(g.recorrencia||'—')); if(g.conta)sub.push('Conta: '+esc(g.conta)); if(g.centro_custo)sub.push('CC: '+esc(g.centro_custo)); if(g.ultimo_lancamento)sub.push('Último: '+dBR(g.ultimo_lancamento));
+    d.innerHTML='<div class="t">'+esc(g.descricao)+' — <b>'+brl(g.valor)+'</b></div><div class="sub">'+sub.join(' · ')+'</div><div class="act"><button class="btn primary sm gfL">⚡ Lançar ('+esc(g.recorrencia||'')+')</button><button class="btn ghost sm gfDel" style="color:#c0392b">🗑</button></div><div class="st gfSt"></div>';
+    d.querySelector('.gfL').onclick=function(){ _lancarFixo(g,d); };
+    d.querySelector('.gfDel').onclick=async function(){ if(!confirm('Remover o gasto fixo "'+g.descricao+'"?'))return; await sb.from('gastos_fixos').delete().eq('id',g.id); carregarFixos(); };
+    box.appendChild(d);
+  });
+}
+async function _lancarFixo(g,el){
+  var st=el.querySelector('.gfSt'); var hoje=hojeISO(), ma=mesAno(hoje);
+  try{
+    var r=await sb.from('financeiro').insert({tipo:(g.tipo==='Entrada'?'Entrada':'Saída'),status:(g.tipo==='Entrada'?'Recebido':'Pago'),data_prevista:hoje,data_realizada:hoje,cliente_fornecedor:g.descricao||'',descricao:g.descricao||'Gasto fixo',categoria:'Fixo',conta:g.conta||null,centro_custo:g.centro_custo||null,metodo:g.metodo||null,valor:(+g.valor)||0,origem:'Gasto fixo',mes:ma.mes,ano:ma.ano}); if(r&&r.error)throw r.error;
+    await sb.from('gastos_fixos').update({ultimo_lancamento:hoje}).eq('id',g.id);
+    if(st)stMsg(st,'ok','✓ Lançado '+brl(g.valor)+' no financeiro.'); carregarFin();
+  }catch(e){ if(st)stMsg(st,'err','Erro: '+(e&&e.message||e)); }
+}
+(function(){ var a=$('btnGfAdd'); if(a) a.onclick=async function(){ var st=$('stGf'); var desc=($('gf_desc').value||'').trim(); var val=(+$('gf_valor').value)||0; if(!desc){stMsg(st,'err','Informe a descrição.');return;} if(!(val>0)){stMsg(st,'err','Informe o valor.');return;} var r=await sb.from('gastos_fixos').insert({tipo:'Saída',descricao:desc,valor:val,recorrencia:$('gf_rec').value,conta:$('gf_conta').value.trim()||null,centro_custo:$('gf_cc').value.trim()||null,metodo:$('gf_metodo').value.trim()||null,ativo:true}); if(r&&r.error){stMsg(st,'err','Erro: '+r.error.message);return;} stMsg(st,'ok','✓ Gasto fixo cadastrado.'); ['gf_desc','gf_valor','gf_conta','gf_cc','gf_metodo'].forEach(function(id){if($(id))$(id).value='';}); carregarFixos(); }; })();
+/* ---- BOLETOS ---- */
+async function carregarBoletos(){
+  var box=$('listaBoletos'); if(!box) return;
+  var r=await sb.from('boletos').select('*').order('vencimento',{ascending:true});
+  if(r.error){ box.innerHTML='<div class="st show err">Crie a tabela (rode o SQL do financeiro). '+esc(r.error.message)+'</div>'; return; }
+  var data=r.data||[];
+  if(!data.length){ box.innerHTML='<div class="hint">Nenhum boleto cadastrado.</div>'; return; }
+  box.innerHTML='';
+  data.forEach(function(bo){
+    var pago=!!bo.pago, lanc=!!bo.lancado; var d=document.createElement('div'); d.className='item';
+    var sub=[]; sub.push('Venc.: '+(bo.vencimento?dBR(bo.vencimento):'—')); sub.push(bo.tipo==='Recebimento'?'Recebimento':'Gasto'); if(bo.conta)sub.push('Conta: '+esc(bo.conta));
+    var badges='<span class="badge '+(pago?'ab':'ap')+'">'+(pago?'Pago':'Em aberto')+'</span>'+(lanc?' <span class="badge ab">lançado</span>':'');
+    d.innerHTML='<div class="t">'+esc(bo.descricao)+' — <b>'+brl(bo.valor)+'</b> '+badges+'</div><div class="sub">'+sub.join(' · ')+'</div>'
+      +'<div class="act"><button class="btn ghost sm boPay">'+(pago?'↺ Desmarcar pago':'✓ Sinalizar pago')+'</button>'+(lanc?'':'<button class="btn primary sm boAdd">➕ Adicionar como '+(bo.tipo==='Recebimento'?'recebimento':'gasto')+'</button>')+'<button class="btn ghost sm boDel" style="color:#c0392b">🗑</button></div><div class="st boSt"></div>';
+    d.querySelector('.boPay').onclick=async function(){ await sb.from('boletos').update({pago:!pago}).eq('id',bo.id); carregarBoletos(); };
+    var ba=d.querySelector('.boAdd'); if(ba) ba.onclick=function(){ _boletoLancar(bo,d); };
+    d.querySelector('.boDel').onclick=async function(){ if(!confirm('Remover o boleto "'+bo.descricao+'"?'))return; await sb.from('boletos').delete().eq('id',bo.id); carregarBoletos(); };
+    box.appendChild(d);
+  });
+}
+async function _boletoLancar(bo,el){
+  var st=el.querySelector('.boSt'); var ent=(bo.tipo==='Recebimento'); var hoje=hojeISO();
+  var pago=!!bo.pago; var status=ent?(pago?'Recebido':'Em aberto'):(pago?'Pago':'A pagar');
+  var dataReal=pago?hoje:null, dataPrev=bo.vencimento||hoje; var ma=mesAno(pago?hoje:dataPrev);
+  try{
+    var ins=await sb.from('financeiro').insert({tipo:(ent?'Entrada':'Saída'),status:status,data_prevista:dataPrev,data_realizada:dataReal,cliente_fornecedor:bo.descricao||'',descricao:bo.descricao||'Boleto',categoria:'Variável',conta:bo.conta||null,centro_custo:bo.centro_custo||null,metodo:'Boleto',boleto:'Boleto',valor:(+bo.valor)||0,origem:'Boleto',mes:ma.mes,ano:ma.ano}).select();
+    var fid=(ins&&ins.data&&ins.data[0]&&ins.data[0].id)||null;
+    await sb.from('boletos').update({lancado:true,financeiro_id:fid}).eq('id',bo.id);
+    if(st)stMsg(st,'ok','✓ Adicionado ao financeiro como '+(ent?'recebimento':'gasto')+'.'); carregarBoletos(); carregarFin();
+  }catch(e){ if(st)stMsg(st,'err','Erro: '+(e&&e.message||e)); }
+}
+(function(){ var a=$('btnBoAdd'); if(a) a.onclick=async function(){ var st=$('stBo'); var desc=($('bo_desc').value||'').trim(); var val=(+$('bo_valor').value)||0; if(!desc){stMsg(st,'err','Informe a descrição.');return;} if(!(val>0)){stMsg(st,'err','Informe o valor.');return;} var r=await sb.from('boletos').insert({tipo:$('bo_tipo').value,descricao:desc,valor:val,vencimento:$('bo_venc').value||null,conta:$('bo_conta').value.trim()||null,centro_custo:$('bo_cc').value.trim()||null,pago:false,lancado:false}); if(r&&r.error){stMsg(st,'err','Erro: '+r.error.message);return;} stMsg(st,'ok','✓ Boleto cadastrado.'); ['bo_desc','bo_valor','bo_venc','bo_conta','bo_cc'].forEach(function(id){if($(id))$(id).value='';}); carregarBoletos(); }; })();
 async function carregarFin(){const {data,error}=await sb.from('financeiro').select('*').order('id',{ascending:false});
   if(error){$('resumo').innerHTML='<div class="st show err">Erro: '+error.message+'</div>';return;}
   _finCache=data||[];
@@ -542,7 +647,7 @@ async function carregarFin(){const {data,error}=await sb.from('financeiro').sele
     d.innerHTML='<div class="t">'+brl(r.valor)+' — '+esc(r.descricao||'')+' <span class="badge ab">em aberto</span></div><div class="sub">'+m.join(' · ')+'</div><div class="act"><input class="rv" type="number" step="0.01" placeholder="valor recebido (opc.)"><button class="btn ok sm br">✓ Recebido</button></div>';
     d.querySelector('.br').onclick=function(){this.disabled=true;receber(r,d.querySelector('.rv').value);};$('listaAberto').appendChild(d);});
   const doMes=data.filter(function(r){return r.mes===mes&&r.ano===ano;});
-  var lm=$('listaUltimos');lm.innerHTML='';
+  var lm=$('listaConferir');if(lm)lm.innerHTML='';
   var tit=document.getElementById('tituloLanc'); if(tit) tit.textContent='🧾 Lançamentos de '+('0'+mes).slice(-2)+'/'+ano+' ('+doMes.length+')';
   if(!doMes.length){lm.innerHTML='<div class="hint">Nenhum lançamento neste mês.</div>';}
   doMes.forEach(function(r){const cor=r.tipo==='Entrada'?'var(--gd)':'#c0392b',sig=r.tipo==='Entrada'?'+':'−';
@@ -551,7 +656,9 @@ async function carregarFin(){const {data,error}=await sb.from('financeiro').sele
     d.innerHTML='<div class="t" style="display:flex;justify-content:space-between;align-items:center"><span>'+esc(r.descricao||r.cliente_fornecedor||r.tipo)+'</span><span style="color:'+cor+'">'+sig+' '+brl(r.valor)+'</span></div><div class="sub" style="margin:2px 0 4px">'+esc(r.tipo)+' · '+esc(r.status||'')+(meta.length?' · '+meta.join(' · '):'')+'</div><div class="act"><button class="btn ghost sm bedf">✏️ Editar</button><button class="btn ghost sm bdelf" style="color:#c0392b">🗑</button></div>';
     d.querySelector('.bedf').onclick=function(){editarFin(r);};
     d.querySelector('.bdelf').onclick=function(){excluirFin(r);};lm.appendChild(d);});
-  _finSetDefaultDates();}
+  _finSetDefaultDates();
+  if(typeof carregarFixos==='function')carregarFixos();
+  if(typeof carregarBoletos==='function')carregarBoletos();}
 $('btnRefresh').onclick=carregarFin;
 (function(){var s=$('finMesSel');if(s)s.onchange=carregarFin;})();
 
@@ -3154,6 +3261,8 @@ function editarFin(r){
   var mm=r.mes?('0'+r.mes).slice(-2):''; document.getElementById('fe_comp').value=(r.ano&&r.mes)?(r.ano+'-'+mm):'';
   document.getElementById('fe_cat').value=r.categoria||'';
   document.getElementById('fe_conta').value=r.conta||'';
+  if(document.getElementById('fe_cc'))document.getElementById('fe_cc').value=r.centro_custo||'';
+  if(document.getElementById('fe_metodo'))document.getElementById('fe_metodo').value=r.metodo||'';
   document.getElementById('fe_dreal').value=r.data_realizada?String(r.data_realizada).slice(0,10):'';
   document.getElementById('fe_dprev').value=r.data_prevista?String(r.data_prevista).slice(0,10):'';
   document.getElementById('fe_boleto').value=r.boleto||'';
@@ -3174,6 +3283,8 @@ async function _salvarFinEdit(){
     valor:(+document.getElementById('fe_valor').value)||0,
     categoria:document.getElementById('fe_cat').value||null,
     conta:document.getElementById('fe_conta').value.trim()||null,
+    centro_custo:(document.getElementById('fe_cc')?document.getElementById('fe_cc').value.trim():'')||null,
+    metodo:(document.getElementById('fe_metodo')?document.getElementById('fe_metodo').value.trim():'')||null,
     data_realizada:document.getElementById('fe_dreal').value||null,
     data_prevista:document.getElementById('fe_dprev').value||null,
     boleto:document.getElementById('fe_boleto').value.trim()||null,
